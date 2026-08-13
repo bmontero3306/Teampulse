@@ -1,0 +1,10 @@
+TeamPulse
+{{ titulo }}
+
+{{ mensaje }}
+{% if url %}
+Más información: {{ url }}
+{% endif %}
+
+—
+Este mensaje fue enviado automáticamente. No respondas este correo.

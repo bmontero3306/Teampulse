@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Inicio · TeamPulse{% endblock %}
+
+{% block nav %}
+<a href="{% url 'cuentas:login' %}" class="font-medium text-sky-700 hover:text-sky-800">Iniciar sesión</a>
+{% endblock %}
+
+{% block content %}
+<section class="mx-auto flex min-h-[calc(100vh-4rem)] max-w-5xl flex-col items-center justify-center px-6 text-center">
+    <p class="mb-4 rounded-full border border-sky-200 bg-sky-50 px-4 py-1 text-sm font-medium text-sky-700">
+        Django 6.1 · Tailwind CSS 4.3
+    </p>
+    <h1 class="text-4xl font-bold tracking-tight text-slate-900 sm:text-6xl">
+        TeamPulse
+    </h1>
+    <p class="mt-4 max-w-xl text-lg text-slate-600">
+        Gestión de desempeño para tu equipo: autoevaluación, evaluación del supervisor y conformidad, con trazabilidad por empresa.
+    </p>
+    <div class="mt-8">
+        <a href="{% url 'cuentas:login' %}" class="inline-flex rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-sky-700">
+            Iniciar sesión
+        </a>
+    </div>
+    <div class="mt-10 grid w-full gap-4 sm:grid-cols-3">
+        <article class="rounded-2xl border border-slate-200 bg-white p-6 text-left shadow-sm">
+            <h2 class="text-sm font-semibold uppercase tracking-wide text-sky-700">Backend</h2>
+            <p class="mt-2 text-slate-600">Django 6.1 con Python 3.13 y SQLite para desarrollo.</p>
+        </article>
+        <article class="rounded-2xl border border-slate-200 bg-white p-6 text-left shadow-sm">
+            <h2 class="text-sm font-semibold uppercase tracking-wide text-sky-700">Estilos</h2>
+            <p class="mt-2 text-slate-600">Tailwind CSS v4 en modo binario standalone, sin npm.</p>
+        </article>
+        <article class="rounded-2xl border border-slate-200 bg-white p-6 text-left shadow-sm">
+            <h2 class="text-sm font-semibold uppercase tracking-wide text-sky-700">Módulo</h2>
+            <p class="mt-2 text-slate-600">La app inicial vive en <code class="font-mono text-sm">app/</code> y es el punto de partida.</p>
+        </article>
+    </div>
+</section>
+{% endblock %}

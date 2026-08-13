@@ -1,0 +1,19 @@
+{% extends "app_shell.html" %}
+
+{% block page_title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<section class="mx-auto max-w-lg">
+    <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h1 class="text-2xl font-semibold tracking-tight text-slate-900">{{ titulo }}</h1>
+        <p class="mt-3 text-sm text-slate-600">{{ mensaje }}</p>
+        <form method="post" class="mt-6 flex items-center gap-3">
+            {% csrf_token %}
+            <button type="submit" class="rounded-lg px-4 py-2 text-sm font-semibold text-white {% if peligro %}bg-red-600 hover:bg-red-700{% else %}bg-sky-600 hover:bg-sky-700{% endif %}">
+                {{ confirmacion }}
+            </button>
+            <a href="{% url 'cuentas:usuarios' %}" class="text-sm font-medium text-slate-600 hover:text-slate-900">Cancelar</a>
+        </form>
+    </div>
+</section>
+{% endblock %}

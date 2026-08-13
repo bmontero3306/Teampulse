@@ -1,0 +1,50 @@
+{% extends "app_shell.html" %}
+
+{% block page_title %}{% if competencia %}Editar competencia{% else %}Nueva competencia{% endif %}{% endblock %}
+
+{% block content %}
+{% include "organizacion/_nav.html" %}
+
+<h1 class="text-2xl font-semibold tracking-tight text-slate-900">
+    {% if competencia %}Editar competencia{% else %}Nueva competencia{% endif %}
+</h1>
+
+{% if form.non_field_errors %}
+<ul class="mt-4 space-y-2">
+    {% for error in form.non_field_errors %}
+    <li class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ error }}</li>
+    {% endfor %}
+</ul>
+{% endif %}
+
+<form method="post" class="mt-6 max-w-xl space-y-4 rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
+    {% csrf_token %}
+    <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700" for="{{ form.nombre.id_for_label }}">Nombre</label>
+        {{ form.nombre }}
+        {{ form.nombre.errors }}
+    </div>
+    <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700" for="{{ form.descripcion.id_for_label }}">Descripción</label>
+        {{ form.descripcion }}
+        {{ form.descripcion.errors }}
+    </div>
+    <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700" for="{{ form.tipo.id_for_label }}">Tipo</label>
+        {{ form.tipo }}
+        {{ form.tipo.errors }}
+    </div>
+    <div class="flex items-center gap-2">
+        {{ form.activa }}
+        <label class="text-sm text-slate-700" for="{{ form.activa.id_for_label }}">Competencia activa</label>
+    </div>
+    <div class="flex flex-wrap gap-3 pt-2">
+        <button type="submit" class="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700">
+            Guardar
+        </button>
+        <a href="{% url 'organizacion:competencias' %}" class="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">
+            Cancelar
+        </a>
+    </div>
+</form>
+{% endblock %}

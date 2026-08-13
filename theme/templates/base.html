@@ -1,0 +1,30 @@
+{% load static tailwind_tags %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}TeamPulse{% endblock %}</title>
+    <link rel="icon" href="{% static 'favicon.svg' %}" type="image/svg+xml">
+    {% tailwind_css %}
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="min-h-screen bg-slate-50 font-sans text-slate-900 antialiased">
+{% block body %}
+    <header class="border-b border-slate-200 bg-white">
+        <div class="mx-auto flex h-16 max-w-5xl items-center justify-between px-6">
+            <a href="{% url 'app:home' %}" class="text-lg font-semibold tracking-tight text-sky-700">
+                TeamPulse
+            </a>
+            <nav class="text-sm text-slate-500">
+                {% block nav %}{% endblock %}
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+{% endblock %}
+</body>
+</html>

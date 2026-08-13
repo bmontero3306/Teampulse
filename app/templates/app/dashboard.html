@@ -1,0 +1,37 @@
+{% extends "app_shell.html" %}
+
+{% block page_title %}Panel{% endblock %}
+
+{% block content %}
+<section>
+    <header class="mb-6">
+        <h1 class="text-2xl font-semibold tracking-tight text-slate-900">Panel</h1>
+        <p class="mt-1 text-sm text-slate-600">
+            {% if user.get_rol_display %}Vista de {{ user.get_rol_display }}.{% endif %}
+        </p>
+        {% if ciclo_activo %}
+        <p class="mt-2 text-sm text-slate-700">
+            Ciclo activo: <span class="font-medium">{{ ciclo_activo.nombre }}</span>
+            <span class="text-slate-500">({{ ciclo_activo.fecha_inicio }} – {{ ciclo_activo.fecha_cierre }})</span>
+        </p>
+        {% elif not mostrar_empresas %}
+        <p class="mt-2 text-sm text-slate-500">No hay ciclo activo.</p>
+        {% endif %}
+    </header>
+
+    <div class="grid gap-6">
+        {% if mostrar_empresas %}
+            {% include "app/partials/_widget_empresas.html" %}
+        {% endif %}
+        {% if mostrar_kpis %}
+            {% include "app/partials/_widget_kpis.html" %}
+        {% endif %}
+        {% if mostrar_equipo %}
+            {% include "app/partials/_widget_equipo.html" %}
+        {% endif %}
+        {% if mostrar_pendientes %}
+            {% include "app/partials/_widget_pendientes.html" %}
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

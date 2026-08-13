@@ -1,0 +1,67 @@
+{% extends "app_shell.html" %}
+
+{% block page_title %}Notificaciones{% endblock %}
+
+{% block content %}
+<section>
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <h1 class="text-2xl font-semibold tracking-tight text-slate-900">Notificaciones</h1>
+            <p class="mt-1 text-sm text-slate-600">
+                Avisos in-app de tu cuenta. Los correos también se envían a {{ user.email }}.
+            </p>
+        </div>
+        {% if notificaciones %}
+        <form method="post" action="{% url 'notificaciones:leer_todas' %}">
+            {% csrf_token %}
+            <button type="submit" class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                Marcar todas como leídas
+            </button>
+        </form>
+        {% endif %}
+    </div>
+
+    {% if notificaciones %}
+    <ul class="mt-6 space-y-3">
+        {% for n in notificaciones %}
+        <li class="rounded-xl border {% if n.leida %}border-slate-200 bg-white{% else %}border-sky-200 bg-sky-50{% endif %} px-4 py-3">
+            <div class="flex flex-wrap items-start justify-between gap-2">
+                <div class="min-w-0">
+                    <p class="font-medium text-slate-900">{{ n.titulo }}</p>
+                    <p class="mt-1 text-sm text-slate-600">{{ n.mensaje }}</p>
+                    <p class="mt-2 text-xs text-slate-400">{{ n.created_at }}</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    {% if not n.leida %}
+                    <span class="rounded-full bg-sky-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">Nueva</span>
+                    {% endif %}
+                    <a href="{% url 'notificaciones:leer' n.pk %}" class="rounded-lg px-2 py-1 text-sm font-medium text-sky-700 hover:bg-sky-100">
+                        {% if n.url %}Ver{% elif n.leida %}Abrir{% else %}Marcar leída{% endif %}
+                    </a>
+                </div>
+            </div>
+        </li>
+        {% endfor %}
+    </ul>
+    {% if is_paginated %}
+    <nav class="mt-6 flex items-center justify-between text-sm text-slate-600">
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}" class="rounded-lg px-3 py-1.5 hover:bg-slate-100">Anterior</a>
+        {% else %}
+        <span></span>
+        {% endif %}
+        <span>Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}" class="rounded-lg px-3 py-1.5 hover:bg-slate-100">Siguiente</a>
+        {% else %}
+        <span></span>
+        {% endif %}
+    </nav>
+    {% endif %}
+    {% else %}
+    <p class="mt-8 rounded-xl border border-dashed border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-500">
+        No tenés notificaciones.
+    </p>
+    {% endif %}
+</section>
+{% endblock %}

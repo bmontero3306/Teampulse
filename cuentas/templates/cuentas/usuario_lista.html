@@ -1,0 +1,95 @@
+{% extends "app_shell.html" %}
+
+{% block page_title %}Usuarios{% endblock %}
+
+{% block content %}
+<section>
+    <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-semibold tracking-tight text-slate-900">Usuarios</h1>
+            <p class="mt-1 text-sm text-slate-600">Altas, roles y estado de las cuentas de la empresa.</p>
+        </div>
+        <a href="{% url 'cuentas:usuario_crear' %}" class="rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700">
+            Nuevo usuario
+        </a>
+    </div>
+
+    <form method="get" class="mt-6 grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-4">
+        <div>
+            <label for="filtro-rol" class="mb-1 block text-xs font-medium text-slate-600">Rol</label>
+            <select id="filtro-rol" name="rol" class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500">
+                <option value="">Todos</option>
+                {% for value, label in roles %}
+                <option value="{{ value }}" {% if filtro_rol == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label for="filtro-activo" class="mb-1 block text-xs font-medium text-slate-600">Activo</label>
+            <select id="filtro-activo" name="activo" class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500">
+                <option value="">Todos</option>
+                <option value="1" {% if filtro_activo == "1" %}selected{% endif %}>Activos</option>
+                <option value="0" {% if filtro_activo == "0" %}selected{% endif %}>Inactivos</option>
+            </select>
+        </div>
+        <div>
+            <label for="filtro-area" class="mb-1 block text-xs font-medium text-slate-600">Área</label>
+            <select id="filtro-area" name="area" class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500">
+                <option value="">Todas</option>
+                {% for area in areas %}
+                <option value="{{ area.pk }}" {% if filtro_area == area.pk|stringformat:"s" %}selected{% endif %}>{{ area.nombre }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="flex items-end">
+            <button type="submit" class="w-full rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                Filtrar
+            </button>
+        </div>
+    </form>
+
+    <div class="mt-4 overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+            <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <tr>
+                    <th class="px-4 py-3">Nombre</th>
+                    <th class="px-4 py-3">Correo</th>
+                    <th class="px-4 py-3">Rol</th>
+                    <th class="px-4 py-3">Área</th>
+                    <th class="px-4 py-3">Estado</th>
+                    <th class="px-4 py-3 text-right">Acciones</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                {% for item in usuarios %}
+                <tr class="hover:bg-slate-50">
+                    <td class="px-4 py-3 font-medium text-slate-900">{{ item.get_full_name|default:item.email }}</td>
+                    <td class="px-4 py-3 text-slate-600">{{ item.email }}</td>
+                    <td class="px-4 py-3 capitalize text-slate-700">{{ item.get_rol_display }}</td>
+                    <td class="px-4 py-3 text-slate-600">{% if item.area %}{{ item.area }}{% else %}—{% endif %}</td>
+                    <td class="px-4 py-3">
+                        {% if item.bloqueado %}
+                        <span class="inline-flex rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">Bloqueado</span>
+                        {% elif item.is_active %}
+                        <span class="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">Activo</span>
+                        {% else %}
+                        <span class="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">Inactivo</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-right whitespace-nowrap">
+                        <a href="{% url 'cuentas:usuario_editar' item.pk %}" class="font-medium text-sky-700 hover:text-sky-800">Editar</a>
+                        <a href="{% url 'cuentas:usuario_desactivar' item.pk %}" class="ml-3 font-medium text-slate-600 hover:text-slate-900">Desactivar</a>
+                        <a href="{% url 'cuentas:usuario_bloquear' item.pk %}" class="ml-3 font-medium text-red-700 hover:text-red-800">Bloquear</a>
+                        <a href="{% url 'cuentas:usuario_reset' item.pk %}" class="ml-3 font-medium text-slate-600 hover:text-slate-900">Reset clave</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="px-4 py-8 text-center text-slate-500">No hay usuarios para mostrar.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

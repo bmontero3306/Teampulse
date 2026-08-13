@@ -1,0 +1,66 @@
+{% extends "app_shell.html" %}
+
+{% block page_title %}{% if form.instance.pk %}Editar usuario{% else %}Nuevo usuario{% endif %}{% endblock %}
+
+{% block content %}
+<section class="mx-auto max-w-2xl">
+    <h1 class="text-2xl font-semibold tracking-tight text-slate-900">
+        {% if form.instance.pk %}Editar usuario{% else %}Nuevo usuario{% endif %}
+    </h1>
+    <p class="mt-1 text-sm text-slate-600">
+        {% if form.instance.pk %}
+        Los cambios se notifican a la persona.
+        {% else %}
+        Al crear la cuenta se genera una contraseña temporal y se envía una notificación.
+        {% endif %}
+    </p>
+
+    <form method="post" class="mt-6 space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        {% csrf_token %}
+        {% include "cuentas/_mensajes.html" %}
+        <div class="grid gap-4 sm:grid-cols-2">
+            {% include "cuentas/_campo.html" with field=form.first_name %}
+            {% include "cuentas/_campo.html" with field=form.last_name %}
+        </div>
+        {% include "cuentas/_campo.html" with field=form.email %}
+        {% include "cuentas/_campo.html" with field=form.dni %}
+        {% include "cuentas/_campo.html" with field=form.rol %}
+        {% include "cuentas/_campo.html" with field=form.area %}
+        {% include "cuentas/_campo.html" with field=form.puesto %}
+        {% include "cuentas/_campo.html" with field=form.supervisor %}
+        {% if form.is_active %}
+        <label class="flex items-center gap-2 text-sm text-slate-700">
+            {{ form.is_active }} {{ form.is_active.label }}
+        </label>
+        {% endif %}
+        {% if form.bloqueado %}
+        <label class="flex items-center gap-2 text-sm text-slate-700">
+            {{ form.bloqueado }} {{ form.bloqueado.label }}
+        </label>
+        {% endif %}
+        <div class="flex items-center gap-3 pt-2">
+            <button type="submit" class="rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700">
+                Guardar
+            </button>
+            <a href="{% url 'cuentas:usuarios' %}" class="text-sm font-medium text-slate-600 hover:text-slate-900">Cancelar</a>
+        </div>
+    </form>
+</section>
+
+{{ form.mapa_puesto_supervisor|json_script:"mapa-puesto-supervisor" }}
+<script>
+    (function () {
+        const nodo = document.getElementById("mapa-puesto-supervisor");
+        const puesto = document.getElementById("id_puesto");
+        const supervisor = document.getElementById("id_supervisor");
+        if (!nodo || !puesto || !supervisor) return;
+        const mapa = JSON.parse(nodo.textContent);
+        puesto.addEventListener("change", function () {
+            const sid = mapa[this.value];
+            if (sid) {
+                supervisor.value = String(sid);
+            }
+        });
+    })();
+</script>
+{% endblock %}

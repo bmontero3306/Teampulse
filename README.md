@@ -1,0 +1,138 @@
+# TeamPulse
+
+Sistema de gestión de desempeño (autoevaluación, evaluación de supervisor, firma de conformidad y reportes ISO 9001).
+
+**Stack:** Django 6.1 · Python 3.12+ · Tailwind CSS 4.3 (binario standalone, sin Node) · SQLite en desarrollo.
+
+Idioma de producto: español. Zona horaria: `America/Argentina/Buenos_Aires`.
+
+## Requisitos
+
+- Python 3.12 o superior (probado con 3.13)
+
+## Arranque local
+
+```powershell
+cd TeamPulse
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
+
+Opcional: copiá `.env.example` a `.env` y ajustá `SECRET_KEY` / `DEBUG`. Sin `.env` el proyecto arranca con valores de desarrollo.
+
+```powershell
+.\.venv\Scripts\python.exe manage.py migrate
+.\.venv\Scripts\python.exe manage.py seed_demo
+```
+
+En Windows dejá dos procesos en paralelo (el CSS se genera con el binario de Tailwind):
+
+```powershell
+.\.venv\Scripts\python.exe manage.py runserver
+```
+
+```powershell
+.\.venv\Scripts\python.exe manage.py tailwind start
+```
+
+Abrí [http://127.0.0.1:8000/](http://127.0.0.1:8000/).
+
+Build de producción del CSS:
+
+```powershell
+.\.venv\Scripts\python.exe manage.py tailwind build
+```
+
+Si `python manage.py tailwind install` falla por SSL (redes corporativas), descargá el binario con curl:
+
+```powershell
+$dir = ".venv\Lib\site-packages\pytailwindcss\bin\v4.3.3"
+New-Item -ItemType Directory -Path $dir -Force | Out-Null
+curl.exe -L -o "$dir\tailwindcss" "https://github.com/tailwindlabs/tailwindcss/releases/download/v4.3.3/tailwindcss-windows-x64.exe"
+.\.venv\Scripts\python.exe manage.py tailwind build
+```
+
+El CSS compilado queda en `theme/static/css/dist/styles.css`. No lo edites a mano.
+
+## Datos demo (`seed_demo`)
+
+El comando es idempotente: si los datos ya existen, actualiza claves y no duplica empresas ni usuarios.
+
+Contraseña de **todas** las cuentas demo: `ClaveDemo-2026`  
+(`must_change_password=False` para poder recorrer el UAT sin cambio forzado.)
+
+| Email | Rol | Notas |
+| --- | --- | --- |
+| `admin@teampulse.local` | superadmin | Plataforma; selector de empresa |
+| `rrhh@acme.local` | admin_rrhh | Empresa Acme Demo |
+| `supervisor@acme.local` | supervisor | Equipo a cargo |
+| `empleado1@acme.local` | empleado | Autoevaluación **pendiente** (recorrido UAT) |
+| `empleado2@acme.local` | empleado | Autoevaluación ya enviada |
+| `empleado3@acme.local` | empleado | Evaluación **cerrada** (comprobante de firma) |
+| `rrhh@beta.local` | admin_rrhh | Empresa Beta Demo (aislamiento tenant) |
+
+Estados del ciclo demo en Acme: pendiente de autoevaluación, autoevaluación enviada, autoevaluación en borrador (el propio supervisor) y cerrada.
+
+Si el seed quedó a medias o querés partir de cero:
+
+```powershell
+Remove-Item db.sqlite3
+.\.venv\Scripts\python.exe manage.py migrate
+.\.venv\Scripts\python.exe manage.py seed_demo
+```
+
+## Superusuario adicional
+
+El identificador es el **email** (no hay username):
+
+```powershell
+.\.venv\Scripts\python.exe manage.py createsuperuser
+```
+
+Email sugerido: `admin@teampulse.local` (ya lo crea `seed_demo`). El usuario queda con rol `superadmin`.
+
+## Reportes ISO 9001
+
+Con un usuario `admin_rrhh` o `superadmin` (este último con empresa seleccionada):
+
+1. Entrá a **Reportes ISO** (`/reportes/iso/`).
+2. Filtrá por ciclo, área, estado de conformidad o fechas.
+3. **Exportar PDF** o **Exportar Excel**. Cada export queda en el audit log.
+
+## Tests
+
+```powershell
+.\.venv\Scripts\python.exe manage.py test
+```
+
+## Recordatorios (cron posterior, sin scheduler)
+
+```powershell
+.\.venv\Scripts\python.exe manage.py enviar_recordatorios
+.\.venv\Scripts\python.exe manage.py enviar_recordatorios --dry-run
+```
+
+Notifica in-app + email (consola en desarrollo) a quienes tienen evaluaciones pendientes en un ciclo activo.
+
+## Producción (fuera del MVP de deploy)
+
+- `DEBUG=False` y `SECRET_KEY` fuerte en `.env`.
+- `ALLOWED_HOSTS` con el dominio real (separado por comas).
+- Cambiar el mailer de consola a SMTP en `MAILERS`.
+- `python manage.py collectstatic` hacia `STATIC_ROOT`.
+- WhiteNoise (u otro servidor de estáticos) es **opcional** y queda fuera del MVP; en desarrollo Django sirve `static/` con `DEBUG=True`.
+- SQLite alcanza para demo; un PostgreSQL queda para una etapa posterior.
+
+## Estructura
+
+- `teampulse/` — settings, URLs raíz
+- `app/` — landing, dashboards, seed demo
+- `cuentas/` — usuario custom, login, roles
+- `empresas/` — tenant y suspensión
+- `organizacion/` — áreas, puestos, organigrama, competencias
+- `evaluaciones/` — plantillas, ciclos y flujo de evaluación
+- `notificaciones/` — in-app + email
+- `auditoria/` — AuditLog
+- `reportes/` — ISO 9001 PDF/Excel
+- `theme/` — Tailwind y `app_shell.html`

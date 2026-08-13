@@ -1,0 +1,27 @@
+{% extends "app_shell.html" %}
+
+{% block page_title %}Reprogramar {{ ciclo.nombre }}{% endblock %}
+
+{% block content %}
+<section class="mx-auto max-w-lg">
+    <h1 class="text-2xl font-semibold tracking-tight text-slate-900">Reprogramar ciclo</h1>
+    <p class="mt-2 text-sm text-slate-600">Cambiás las fechas de «{{ ciclo.nombre }}». El historial se conserva.</p>
+    <form method="post" class="mt-6 space-y-4 rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
+        {% csrf_token %}
+        <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700" for="{{ form.fecha_inicio.id_for_label }}">Fecha de inicio</label>
+            {{ form.fecha_inicio }}
+            {{ form.fecha_inicio.errors }}
+        </div>
+        <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700" for="{{ form.fecha_cierre.id_for_label }}">Fecha de cierre</label>
+            {{ form.fecha_cierre }}
+            {{ form.fecha_cierre.errors }}
+        </div>
+        <div class="flex flex-wrap gap-3">
+            <button type="submit" class="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700">Guardar fechas</button>
+            <a href="{% url 'evaluaciones:ciclo_detalle' ciclo.pk %}" class="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">Cancelar</a>
+        </div>
+    </form>
+</section>
+{% endblock %}

@@ -1,0 +1,57 @@
+{% extends "app_shell.html" %}
+
+{% block page_title %}Competencias{% endblock %}
+
+{% block content %}
+{% include "organizacion/_nav.html" %}
+
+<div class="flex flex-wrap items-center justify-between gap-3">
+    <div>
+        <h1 class="text-2xl font-semibold tracking-tight text-slate-900">Competencias</h1>
+        <p class="mt-1 text-sm text-slate-600">Catálogo de competencias técnicas, actitudinales y objetivos.</p>
+    </div>
+    {% if puede_editar %}
+    <a href="{% url 'organizacion:competencia_form' %}"
+       class="inline-flex rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700">
+        Nueva competencia
+    </a>
+    {% endif %}
+</div>
+
+<div class="mt-6 overflow-x-auto rounded-xl border border-slate-200 bg-white">
+    <table class="min-w-full text-left text-sm">
+        <thead class="border-b border-slate-200 bg-slate-50 text-slate-600">
+            <tr>
+                <th class="px-4 py-3 font-medium">Nombre</th>
+                <th class="px-4 py-3 font-medium">Tipo</th>
+                <th class="px-4 py-3 font-medium">Estado</th>
+                {% if puede_editar %}<th class="px-4 py-3 font-medium"></th>{% endif %}
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+            {% for competencia in competencias %}
+            <tr>
+                <td class="px-4 py-3 font-medium text-slate-900">{{ competencia.nombre }}</td>
+                <td class="px-4 py-3 text-slate-600">{{ competencia.get_tipo_display }}</td>
+                <td class="px-4 py-3">
+                    {% if competencia.activa %}
+                    <span class="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-800">Activa</span>
+                    {% else %}
+                    <span class="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">Inactiva</span>
+                    {% endif %}
+                </td>
+                {% if puede_editar %}
+                <td class="px-4 py-3 text-right">
+                    <a href="{% url 'organizacion:competencia_form' competencia.pk %}" class="font-medium text-sky-700 hover:text-sky-900">Editar</a>
+                </td>
+                {% endif %}
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="4" class="px-4 py-8 text-center text-slate-500">No hay competencias para mostrar.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

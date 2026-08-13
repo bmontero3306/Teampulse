@@ -1,0 +1,69 @@
+{% extends "app_shell.html" %}
+
+{% block page_title %}Plantillas{% endblock %}
+
+{% block content %}
+<div class="flex flex-wrap items-center justify-between gap-3">
+    <div>
+        <h1 class="text-2xl font-semibold tracking-tight text-slate-900">Plantillas de evaluación</h1>
+        <p class="mt-1 text-sm text-slate-600">Criterios, escalas y puestos asociados a cada plantilla.</p>
+    </div>
+    {% if puede_editar %}
+    <a href="{% url 'evaluaciones:plantilla_crear' %}"
+       class="inline-flex rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700">
+        Nueva plantilla
+    </a>
+    {% endif %}
+</div>
+
+<div class="mt-6 overflow-x-auto rounded-xl border border-slate-200 bg-white">
+    <table class="min-w-full text-left text-sm">
+        <thead class="border-b border-slate-200 bg-slate-50 text-slate-600">
+            <tr>
+                <th class="px-4 py-3 font-medium">Nombre</th>
+                <th class="px-4 py-3 font-medium">Tipo</th>
+                <th class="px-4 py-3 font-medium">Puestos asociados</th>
+                <th class="px-4 py-3 font-medium">Estado</th>
+                {% if puede_editar %}<th class="px-4 py-3 font-medium"></th>{% endif %}
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+            {% for plantilla in plantillas %}
+            <tr>
+                <td class="px-4 py-3 font-medium text-slate-900">{{ plantilla.nombre }}</td>
+                <td class="px-4 py-3">
+                    {% include "evaluaciones/_badge_tipo.html" with tipo=plantilla.tipo %}
+                </td>
+                <td class="px-4 py-3 text-slate-600">
+                    {% for puesto in plantilla.puestos.all %}
+                    <span class="mr-1 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700">{{ puesto.nombre }}</span>
+                    {% empty %}
+                    <span class="text-slate-400">—</span>
+                    {% endfor %}
+                </td>
+                <td class="px-4 py-3">
+                    {% if plantilla.activa %}
+                    <span class="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-800">Activa</span>
+                    {% else %}
+                    <span class="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">Inactiva</span>
+                    {% endif %}
+                </td>
+                {% if puede_editar %}
+                <td class="px-4 py-3 text-right whitespace-nowrap">
+                    <a href="{% url 'evaluaciones:plantilla_editar' plantilla.pk %}" class="font-medium text-sky-700 hover:text-sky-900">Editar</a>
+                    <form method="post" action="{% url 'evaluaciones:plantilla_duplicar' plantilla.pk %}" class="inline">
+                        {% csrf_token %}
+                        <button type="submit" class="ml-3 font-medium text-slate-600 hover:text-slate-900">Duplicar</button>
+                    </form>
+                </td>
+                {% endif %}
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5" class="px-4 py-8 text-center text-slate-500">No hay plantillas para mostrar.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

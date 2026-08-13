@@ -1,0 +1,38 @@
+{% extends "app_shell.html" %}
+
+{% block page_title %}Organigrama{% endblock %}
+
+{% block content %}
+{% include "organizacion/_nav.html" %}
+
+<div class="flex flex-wrap items-center justify-between gap-3">
+    <div>
+        <h1 class="text-2xl font-semibold tracking-tight text-slate-900">Organigrama</h1>
+        <p class="mt-1 text-sm text-slate-600">Estructura de puestos de la empresa.</p>
+    </div>
+    {% if puede_editar %}
+    <a href="{% url 'organizacion:puesto_crear' %}"
+       class="inline-flex rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700">
+        Nuevo puesto
+    </a>
+    {% endif %}
+</div>
+
+{% if sin_puesto %}
+<p class="mt-8 rounded-xl border border-slate-200 bg-white px-4 py-6 text-slate-600">
+    No tenés un puesto asignado. Cuando RRHH te asigne uno, vas a ver tu lugar en el organigrama.
+</p>
+{% elif not raices %}
+<p class="mt-8 rounded-xl border border-slate-200 bg-white px-4 py-6 text-slate-600">
+    Todavía no hay puestos activos para mostrar.
+</p>
+{% else %}
+<div class="mt-6 overflow-x-auto">
+    <ul class="min-w-[18rem] space-y-3">
+        {% for raiz in raices %}
+            {% include "organizacion/_organigrama_nodo.html" with nodo=raiz %}
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+{% endblock %}

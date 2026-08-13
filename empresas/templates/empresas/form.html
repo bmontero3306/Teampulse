@@ -1,0 +1,61 @@
+{% extends "app_shell.html" %}
+
+{% block page_title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<section class="mx-auto max-w-3xl">
+    <div class="mb-6">
+        <h1 class="text-2xl font-semibold tracking-tight text-slate-900">{{ titulo }}</h1>
+        <p class="mt-1 text-sm text-slate-600">
+            {% if user.rol == "admin_rrhh" %}
+            Podés actualizar el nombre y los datos de contacto de tu empresa.
+            {% else %}
+            Completá los datos de la empresa. El CUIT no puede repetirse.
+            {% endif %}
+        </p>
+    </div>
+
+    <form method="post" class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+        <ul class="mb-4 space-y-1 text-sm text-red-700">
+            {% for error in form.non_field_errors %}
+            <li>{{ error }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {% for field in form %}
+            <div class="{% if field.name == 'direccion' %}sm:col-span-2{% endif %}">
+                <label for="{{ field.id_for_label }}" class="mb-1 block text-sm font-medium text-slate-700">
+                    {{ field.label }}{% if field.field.required %} <span class="text-red-600">*</span>{% endif %}
+                </label>
+                {{ field }}
+                {% if field.help_text %}
+                <p class="mt-1 text-xs text-slate-500">{{ field.help_text }}</p>
+                {% endif %}
+                {% for error in field.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ error }}</p>
+                {% endfor %}
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            {% if empresa %}
+            <a href="{% url 'empresas:detalle' empresa.pk %}" class="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                Cancelar
+            </a>
+            {% else %}
+            <a href="{% url 'empresas:lista' %}" class="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                Cancelar
+            </a>
+            {% endif %}
+            <button type="submit" class="inline-flex items-center justify-center rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-sky-700">
+                Guardar
+            </button>
+        </div>
+    </form>
+</section>
+{% endblock %}

@@ -1,0 +1,78 @@
+{% extends "app_shell.html" %}
+
+{% block page_title %}Supervisar evaluación{% endblock %}
+
+{% block content %}
+<a href="{% url 'evaluaciones:equipo' %}" class="text-sm font-medium text-sky-700 hover:text-sky-900">← Equipo</a>
+<h1 class="mt-2 text-2xl font-semibold tracking-tight text-slate-900">
+    Evaluar a {{ evaluacion.evaluado.get_full_name|default:evaluacion.evaluado.email }}
+</h1>
+<p class="mt-1 text-sm text-slate-600">Ciclo «{{ evaluacion.ciclo.nombre }}» · vista comparativa por criterio.</p>
+<div class="mt-2">
+    {% include "evaluaciones/_badge_estado.html" with estado=evaluacion.estado contexto="evaluacion" etiqueta=evaluacion.get_estado_display %}
+</div>
+
+{% if not puede_editar %}
+<p class="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+    Esta evaluación ya no admite cambios del supervisor.
+</p>
+{% endif %}
+
+<form method="post" class="mt-6 space-y-4">
+    {% csrf_token %}
+    {{ formset.management_form }}
+
+    <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+        <table class="min-w-[720px] w-full text-left text-sm">
+            <thead class="border-b border-slate-200 bg-slate-50 text-slate-600">
+                <tr>
+                    <th class="px-4 py-3 font-medium">Criterio</th>
+                    <th class="px-4 py-3 font-medium">Empleado</th>
+                    <th class="px-4 py-3 font-medium">Comentario empleado</th>
+                    <th class="px-4 py-3 font-medium">Supervisor</th>
+                    <th class="px-4 py-3 font-medium">Comentario supervisor</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 align-top">
+                {% for form in formset %}
+                <tr>
+                    <td class="px-4 py-3">
+                        {{ form.id }}
+                        <p class="font-medium text-slate-900">{{ form.instance.criterio.competencia.nombre }}</p>
+                        <p class="text-xs text-slate-500">
+                            Escala {{ form.instance.criterio.escala_min }}–{{ form.instance.criterio.escala_max }}
+                            {% if form.instance.criterio.comentario_supervisor_obligatorio %}· com. obl.{% endif %}
+                        </p>
+                    </td>
+                    <td class="px-4 py-3 text-slate-800">{{ form.instance.puntaje_empleado|default:"—" }}</td>
+                    <td class="px-4 py-3 text-slate-600 whitespace-pre-line">{{ form.instance.comentario_empleado|default:"—" }}</td>
+                    <td class="px-4 py-3 w-28">{{ form.puntaje_supervisor }}{{ form.puntaje_supervisor.errors }}</td>
+                    <td class="px-4 py-3 min-w-48">{{ form.comentario_supervisor }}{{ form.comentario_supervisor.errors }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <section class="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
+        <label class="mb-1 block text-sm font-medium text-slate-700" for="{{ form_cierre.feedback_supervisor.id_for_label }}">
+            Feedback del supervisor (obligatorio al cerrar)
+        </label>
+        {{ form_cierre.feedback_supervisor }}
+        {{ form_cierre.feedback_supervisor.errors }}
+    </section>
+
+    {% if puede_editar %}
+    <div class="flex flex-col gap-3 sm:flex-row">
+        <button type="submit" name="accion" value="borrador" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+            Guardar borrador
+        </button>
+        <button type="submit" name="accion" value="cerrar"
+                onclick="return confirm('¿Cerrar la evaluación de supervisor? El empleado podrá firmar la conformidad.');"
+                class="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700">
+            Cerrar evaluación
+        </button>
+    </div>
+    {% endif %}
+</form>
+{% endblock %}

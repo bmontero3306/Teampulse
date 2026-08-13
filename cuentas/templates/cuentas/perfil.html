@@ -1,0 +1,52 @@
+{% extends "app_shell.html" %}
+
+{% block page_title %}Mi perfil{% endblock %}
+
+{% block content %}
+<section class="mx-auto max-w-2xl">
+    <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-semibold tracking-tight text-slate-900">Mi perfil</h1>
+            <p class="mt-1 text-sm text-slate-600">Datos de solo lectura. Para cambiar la clave usá el botón.</p>
+        </div>
+        <a href="{% url 'cuentas:password_change' %}" class="rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700">
+            Cambiar clave
+        </a>
+    </div>
+
+    <dl class="mt-6 divide-y divide-slate-200 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div class="grid gap-1 px-6 py-4 sm:grid-cols-3 sm:gap-4">
+            <dt class="text-sm font-medium text-slate-500">Nombre</dt>
+            <dd class="text-sm text-slate-900 sm:col-span-2">{{ user.get_full_name|default:"—" }}</dd>
+        </div>
+        <div class="grid gap-1 px-6 py-4 sm:grid-cols-3 sm:gap-4">
+            <dt class="text-sm font-medium text-slate-500">Correo</dt>
+            <dd class="text-sm text-slate-900 sm:col-span-2">{{ user.email }}</dd>
+        </div>
+        <div class="grid gap-1 px-6 py-4 sm:grid-cols-3 sm:gap-4">
+            <dt class="text-sm font-medium text-slate-500">DNI</dt>
+            <dd class="text-sm text-slate-900 sm:col-span-2">{{ user.dni|default:"—" }}</dd>
+        </div>
+        <div class="grid gap-1 px-6 py-4 sm:grid-cols-3 sm:gap-4">
+            <dt class="text-sm font-medium text-slate-500">Rol</dt>
+            <dd class="text-sm capitalize text-slate-900 sm:col-span-2">{{ user.get_rol_display }}</dd>
+        </div>
+        <div class="grid gap-1 px-6 py-4 sm:grid-cols-3 sm:gap-4">
+            <dt class="text-sm font-medium text-slate-500">Empresa</dt>
+            <dd class="text-sm text-slate-900 sm:col-span-2">{% if user.empresa %}{{ user.empresa }}{% else %}—{% endif %}</dd>
+        </div>
+        <div class="grid gap-1 px-6 py-4 sm:grid-cols-3 sm:gap-4">
+            <dt class="text-sm font-medium text-slate-500">Área</dt>
+            <dd class="text-sm text-slate-900 sm:col-span-2">{% if user.area %}{{ user.area }}{% else %}—{% endif %}</dd>
+        </div>
+        <div class="grid gap-1 px-6 py-4 sm:grid-cols-3 sm:gap-4">
+            <dt class="text-sm font-medium text-slate-500">Puesto</dt>
+            <dd class="text-sm text-slate-900 sm:col-span-2">{% if user.puesto %}{{ user.puesto }}{% else %}—{% endif %}</dd>
+        </div>
+        <div class="grid gap-1 px-6 py-4 sm:grid-cols-3 sm:gap-4">
+            <dt class="text-sm font-medium text-slate-500">Supervisor</dt>
+            <dd class="text-sm text-slate-900 sm:col-span-2">{% if user.supervisor %}{{ user.supervisor.get_full_name|default:user.supervisor.email }}{% else %}—{% endif %}</dd>
+        </div>
+    </dl>
+</section>
+{% endblock %}

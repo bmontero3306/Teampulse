@@ -1,0 +1,33 @@
+{% if contexto == "ciclo" %}
+    {% if estado == "activo" %}
+    <span class="inline-flex items-center rounded-full bg-sky-50 px-2.5 py-0.5 text-xs font-medium text-sky-800 ring-1 ring-inset ring-sky-200">Activo</span>
+    {% elif estado == "pausado" %}
+    <span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-200">Pausado</span>
+    {% elif estado == "cancelado" %}
+    <span class="inline-flex items-center rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-800 ring-1 ring-inset ring-red-200">Cancelado</span>
+    {% elif estado == "cerrado" %}
+    <span class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-800 ring-1 ring-inset ring-emerald-200">Cerrado</span>
+    {% elif estado == "borrador" %}
+    <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700 ring-1 ring-inset ring-slate-200">Borrador</span>
+    {% else %}
+    <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700 ring-1 ring-inset ring-slate-200">{{ etiqueta|default:estado }}</span>
+    {% endif %}
+{% else %}
+    {% if estado == "cerrada" %}
+    <span class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-800 ring-1 ring-inset ring-emerald-200">Cerrada</span>
+    {% elif estado == "cerrada_con_obs" %}
+    <span class="inline-flex items-center rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-800 ring-1 ring-inset ring-red-200">Cerrada con observación</span>
+    {% elif estado == "pendiente_auto" %}
+    <span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-200">Pendiente de autoevaluación</span>
+    {% elif estado == "pendiente_conformidad" %}
+    <span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-200">Pendiente de conformidad</span>
+    {% elif estado == "pausado" or estado == "auto_borrador" or estado == "auto_completa" or estado == "supervisor_borrador" %}
+    <span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-200">{{ etiqueta|default:estado }}</span>
+    {% elif estado == "cancelada" or estado == "cancelado" %}
+    <span class="inline-flex items-center rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-800 ring-1 ring-inset ring-red-200">Cancelada</span>
+    {% elif estado == "activa" %}
+    <span class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-800 ring-1 ring-inset ring-emerald-200">Activa</span>
+    {% else %}
+    <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700 ring-1 ring-inset ring-slate-200">{{ etiqueta|default:estado }}</span>
+    {% endif %}
+{% endif %}
