@@ -1,6 +1,5 @@
 """URL configuration for teampulse project."""
 
-from django.conf import settings
 from django.contrib import admin
 from django.urls import include, path
 
@@ -15,11 +14,6 @@ urlpatterns = [
     path("auditoria/", include("auditoria.urls")),
     path("", include("app.urls")),
 ]
-
-if settings.DEBUG:
-    urlpatterns += [
-        path("__reload__/", include("django_browser_reload.urls")),
-    ]
 
 # WP1 — panel superadmin (alias; no reemplaza /empresas/)
 urlpatterns += [

@@ -50,7 +50,6 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "tailwind",
     "theme",
     # WP0
     "cuentas",
@@ -63,9 +62,6 @@ INSTALLED_APPS = [
     "app",
 ]
 
-if DEBUG:
-    INSTALLED_APPS += ["django_browser_reload"]
-
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -77,9 +73,6 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
-
-if DEBUG:
-    MIDDLEWARE += ["django_browser_reload.middleware.BrowserReloadMiddleware"]
 
 ROOT_URLCONF = "teampulse.urls"
 
@@ -151,17 +144,14 @@ LOGIN_REDIRECT_URL = "/dashboard/"
 LOGOUT_REDIRECT_URL = "/"
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "noreply@teampulse.local")
 # WP6 — notificaciones in-app + email vía MAILERS["default"] (console en dev).
-# Email único por empresa (UniqueConstraint), no global. WP2 autenticará en ese contexto.
-SILENCED_SYSTEM_CHECKS = ["auth.E003"]
+# Email único por empresa (UniqueConstraint), no global. EmailEmpresaBackend
+# resuelve el login cuando el mismo correo existe en más de un tenant.
+SILENCED_SYSTEM_CHECKS = ["auth.E003", "auth.W004"]
 
 # WP2
 AUTHENTICATION_BACKENDS = [
     "cuentas.backends.EmailEmpresaBackend",
 ]
-
-TAILWIND_APP_NAME = "theme"
-TAILWIND_USE_STANDALONE_BINARY = True
-TAILWIND_STANDALONE_BINARY_VERSION = "v4.3.3"
 
 # WP4
 # Plantillas de evaluación (CU10) en la app evaluaciones.

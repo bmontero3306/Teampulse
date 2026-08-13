@@ -1,6 +1,4 @@
 ﻿Django==6.1
-django-tailwind[cookiecutter,honcho,reload]==4.5.0
-pytailwindcss==0.3.1
 openpyxl
 reportlab
 Pillow

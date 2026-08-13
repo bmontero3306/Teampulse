@@ -2,7 +2,7 @@
 
 Sistema de gestión de desempeño (autoevaluación, evaluación de supervisor, firma de conformidad y reportes ISO 9001).
 
-**Stack:** Django 6.1 · Python 3.12+ · Tailwind CSS 4.3 (binario standalone, sin Node) · SQLite en desarrollo.
+**Stack:** Django 6.1 · Python 3.12+ · Tailwind CSS v4 (CDN) · SQLite en desarrollo.
 
 Idioma de producto: español. Zona horaria: `America/Argentina/Buenos_Aires`.
 
@@ -26,34 +26,11 @@ Opcional: copiá `.env.example` a `.env` y ajustá `SECRET_KEY` / `DEBUG`. Sin `
 .\.venv\Scripts\python.exe manage.py seed_demo
 ```
 
-En Windows dejá dos procesos en paralelo (el CSS se genera con el binario de Tailwind):
-
 ```powershell
 .\.venv\Scripts\python.exe manage.py runserver
 ```
 
-```powershell
-.\.venv\Scripts\python.exe manage.py tailwind start
-```
-
-Abrí [http://127.0.0.1:8000/](http://127.0.0.1:8000/).
-
-Build de producción del CSS:
-
-```powershell
-.\.venv\Scripts\python.exe manage.py tailwind build
-```
-
-Si `python manage.py tailwind install` falla por SSL (redes corporativas), descargá el binario con curl:
-
-```powershell
-$dir = ".venv\Lib\site-packages\pytailwindcss\bin\v4.3.3"
-New-Item -ItemType Directory -Path $dir -Force | Out-Null
-curl.exe -L -o "$dir\tailwindcss" "https://github.com/tailwindlabs/tailwindcss/releases/download/v4.3.3/tailwindcss-windows-x64.exe"
-.\.venv\Scripts\python.exe manage.py tailwind build
-```
-
-El CSS compilado queda en `theme/static/css/dist/styles.css`. No lo edites a mano.
+Abrí [http://127.0.0.1:8000/](http://127.0.0.1:8000/). Los estilos salen del Play CDN de Tailwind v4 (`@tailwindcss/browser`), sin proceso extra ni `styles.css` compilado.
 
 ## Datos demo (`seed_demo`)
 
@@ -135,4 +112,4 @@ Notifica in-app + email (consola en desarrollo) a quienes tienen evaluaciones pe
 - `notificaciones/` — in-app + email
 - `auditoria/` — AuditLog
 - `reportes/` — ISO 9001 PDF/Excel
-- `theme/` — Tailwind y `app_shell.html`
+- `theme/` — plantillas base (`base.html`, `app_shell.html`) y estáticos
