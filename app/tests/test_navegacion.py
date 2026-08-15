@@ -29,7 +29,7 @@ class NavegacionPorRolTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             _claves_nav(response),
-            ["dashboard", "mias", "notificaciones", "perfil"],
+            ["dashboard", "mias", "notificaciones", "ayuda", "perfil"],
         )
         self.assertNotContains(response, 'data-nav="usuarios"')
         self.assertNotContains(response, 'data-nav="equipo"')
@@ -53,6 +53,7 @@ class NavegacionPorRolTests(TestCase):
                 "equipo",
                 "mias",
                 "notificaciones",
+                "ayuda",
                 "perfil",
             ],
         )
@@ -75,6 +76,7 @@ class NavegacionPorRolTests(TestCase):
                 "reportes",
                 "auditoria",
                 "notificaciones",
+                "ayuda",
                 "perfil",
             ],
         )
@@ -88,7 +90,7 @@ class NavegacionPorRolTests(TestCase):
         response = self._dashboard(usuario)
         self.assertEqual(
             _claves_nav(response),
-            ["dashboard", "empresas", "perfil"],
+            ["dashboard", "empresas", "ayuda", "perfil"],
         )
         self.assertNotContains(response, 'data-nav="usuarios"')
         self.assertNotContains(response, 'data-nav="ciclos"')
@@ -108,6 +110,7 @@ class NavegacionPorRolTests(TestCase):
                 "reportes",
                 "auditoria",
                 "notificaciones",
+                "ayuda",
                 "perfil",
             ],
         )
@@ -115,7 +118,7 @@ class NavegacionPorRolTests(TestCase):
     def test_items_navegacion_helper_empleado(self):
         usuario = make_usuario(self.empresa, rol="empleado")
         claves = [item["clave"] for item in items_navegacion(usuario, self.empresa)]
-        self.assertEqual(claves, ["dashboard", "mias", "notificaciones", "perfil"])
+        self.assertEqual(claves, ["dashboard", "mias", "notificaciones", "ayuda", "perfil"])
 
     def test_sidebar_es_overlay_en_mobile(self):
         usuario = make_usuario(self.empresa, rol="empleado")

@@ -116,6 +116,14 @@ def items_navegacion(user, empresa=None):
             "mostrar": es_admin or es_supervisor or es_empleado,
         },
         {
+            "clave": "ayuda",
+            "etiqueta": "Ayuda",
+            "icono": "circle-help",
+            "nombre": "app:ayuda",
+            "fallback": "/ayuda/",
+            "mostrar": True,
+        },
+        {
             "clave": "perfil",
             "etiqueta": "Perfil",
             "icono": "circle-user",

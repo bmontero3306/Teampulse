@@ -101,10 +101,14 @@ Notifica in-app + email (consola en desarrollo) a quienes tienen evaluaciones pe
 - WhiteNoise (u otro servidor de estáticos) es **opcional** y queda fuera del MVP; en desarrollo Django sirve `static/` con `DEBUG=True`.
 - SQLite alcanza para demo; un PostgreSQL queda para una etapa posterior.
 
+## Ayuda in-app
+
+Con sesión iniciada, el menú **Ayuda** (`/ayuda/`) explica el proceso, las piezas del sistema, el flujo de una evaluación y los estados de ciclo/evaluación. Las guías se filtran por rol (un empleado no ve reportes ni auditoría).
+
 ## Estructura
 
 - `teampulse/` — settings, URLs raíz
-- `app/` — landing, dashboards, seed demo
+- `app/` — landing, dashboards, seed demo, ayuda in-app
 - `cuentas/` — usuario custom, login, roles
 - `empresas/` — tenant y suspensión
 - `organizacion/` — áreas, puestos, organigrama, competencias

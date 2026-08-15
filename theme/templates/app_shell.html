@@ -26,7 +26,7 @@
                 href="{{ item.href }}"
                 data-nav="{{ item.clave }}"
                 title="{{ item.etiqueta }}"
-                class="flex items-center gap-3 rounded-lg px-2 py-2 font-medium hover:bg-sky-50 hover:text-sky-800 {% if request.path == item.href %}bg-sky-50 text-sky-800{% else %}text-slate-700{% endif %}"
+                class="flex items-center gap-3 rounded-lg px-2 py-2 font-medium hover:bg-sky-50 hover:text-sky-800 {% if request.path == item.href or item.href != '/' and item.href in request.path %}bg-sky-50 text-sky-800{% else %}text-slate-700{% endif %}"
             >
                 <span class="flex h-8 w-8 shrink-0 items-center justify-center" aria-hidden="true">
                     <i data-lucide="{{ item.icono|default:'circle' }}" class="h-[18px] w-[18px]"></i>
