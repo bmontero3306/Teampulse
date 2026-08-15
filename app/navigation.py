@@ -30,6 +30,7 @@ def items_navegacion(user, empresa=None):
         {
             "clave": "dashboard",
             "etiqueta": "Panel",
+            "icono": "layout-dashboard",
             "nombre": "app:dashboard",
             "fallback": "/dashboard/",
             "mostrar": True,
@@ -37,6 +38,7 @@ def items_navegacion(user, empresa=None):
         {
             "clave": "empresas",
             "etiqueta": "Empresas",
+            "icono": "building-2",
             "nombre": "empresas:lista",
             "fallback": "/empresas/",
             "mostrar": es_superadmin,
@@ -44,6 +46,7 @@ def items_navegacion(user, empresa=None):
         {
             "clave": "usuarios",
             "etiqueta": "Usuarios",
+            "icono": "users",
             "nombre": "cuentas:usuarios",
             "fallback": "/cuentas/usuarios/",
             "mostrar": es_admin,
@@ -51,6 +54,7 @@ def items_navegacion(user, empresa=None):
         {
             "clave": "organigrama",
             "etiqueta": "Organigrama",
+            "icono": "network",
             "nombre": "organizacion:organigrama",
             "fallback": "/organizacion/organigrama/",
             "mostrar": es_admin or es_supervisor,
@@ -58,6 +62,7 @@ def items_navegacion(user, empresa=None):
         {
             "clave": "plantillas",
             "etiqueta": "Plantillas",
+            "icono": "clipboard-list",
             "nombre": "evaluaciones:plantillas",
             "fallback": "/evaluaciones/plantillas/",
             "mostrar": es_admin or es_supervisor,
@@ -65,6 +70,7 @@ def items_navegacion(user, empresa=None):
         {
             "clave": "ciclos",
             "etiqueta": "Ciclos",
+            "icono": "calendar",
             "nombre": "evaluaciones:ciclos",
             "fallback": "/evaluaciones/ciclos/",
             "mostrar": es_admin or es_supervisor,
@@ -72,6 +78,7 @@ def items_navegacion(user, empresa=None):
         {
             "clave": "equipo",
             "etiqueta": "Equipo",
+            "icono": "users-round",
             "nombre": "evaluaciones:equipo",
             "fallback": "/evaluaciones/equipo/",
             "mostrar": es_supervisor,
@@ -79,6 +86,7 @@ def items_navegacion(user, empresa=None):
         {
             "clave": "mias",
             "etiqueta": "Mis evaluaciones",
+            "icono": "clipboard-check",
             "nombre": "evaluaciones:mias",
             "fallback": "/evaluaciones/mias/",
             "mostrar": es_empleado,
@@ -86,6 +94,7 @@ def items_navegacion(user, empresa=None):
         {
             "clave": "reportes",
             "etiqueta": "Reportes ISO",
+            "icono": "chart-column",
             "nombre": "reportes:iso",
             "fallback": "/reportes/iso/",
             "mostrar": es_admin,
@@ -93,6 +102,7 @@ def items_navegacion(user, empresa=None):
         {
             "clave": "auditoria",
             "etiqueta": "Auditoría",
+            "icono": "shield-check",
             "nombre": "auditoria:lista",
             "fallback": "/auditoria/",
             "mostrar": es_admin,
@@ -100,6 +110,7 @@ def items_navegacion(user, empresa=None):
         {
             "clave": "notificaciones",
             "etiqueta": "Notificaciones",
+            "icono": "bell",
             "nombre": "notificaciones:lista",
             "fallback": "/notificaciones/",
             "mostrar": es_admin or es_supervisor or es_empleado,
@@ -107,6 +118,7 @@ def items_navegacion(user, empresa=None):
         {
             "clave": "perfil",
             "etiqueta": "Perfil",
+            "icono": "circle-user",
             "nombre": "cuentas:perfil",
             "fallback": "/cuentas/perfil/",
             "mostrar": True,
@@ -121,6 +133,7 @@ def items_navegacion(user, empresa=None):
             {
                 "clave": item["clave"],
                 "etiqueta": item["etiqueta"],
+                "icono": item["icono"],
                 "href": _ruta(item["nombre"], item["fallback"]),
             }
         )

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}{% block page_title %}TeamPulse{% endblock %} · TeamPulse{% endblock %}
 
@@ -15,7 +16,7 @@
         {% block sidebar %}
         <div class="flex h-16 items-center gap-2 border-b border-slate-200 px-3">
             <a href="{% url 'app:dashboard' %}" class="flex min-w-0 items-center gap-2 text-lg font-semibold tracking-tight text-sky-700">
-                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-600 text-sm font-bold text-white">T</span>
+                <img src="{% static 'logo_solo.png' %}" alt="TeamPulse" class="h-9 w-9 shrink-0 rounded-lg object-contain">
                 <span class="truncate group-data-[colapsado=true]/nav:lg:hidden">TeamPulse</span>
             </a>
         </div>
@@ -27,14 +28,17 @@
                 title="{{ item.etiqueta }}"
                 class="flex items-center gap-3 rounded-lg px-2 py-2 font-medium hover:bg-sky-50 hover:text-sky-800 {% if request.path == item.href %}bg-sky-50 text-sky-800{% else %}text-slate-700{% endif %}"
             >
-                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-xs font-semibold text-slate-600">
-                    {{ item.etiqueta|slice:":1" }}
+                <span class="flex h-8 w-8 shrink-0 items-center justify-center" aria-hidden="true">
+                    <i data-lucide="{{ item.icono|default:'circle' }}" class="h-[18px] w-[18px]"></i>
                 </span>
                 <span class="truncate group-data-[colapsado=true]/nav:lg:hidden">{{ item.etiqueta }}</span>
             </a>
             {% empty %}
             <a href="{% url 'app:dashboard' %}" data-nav="dashboard" class="flex items-center gap-3 rounded-lg px-2 py-2 font-medium text-slate-700 hover:bg-sky-50 hover:text-sky-800">
-                Panel
+                <span class="flex h-8 w-8 shrink-0 items-center justify-center" aria-hidden="true">
+                    <i data-lucide="layout-dashboard" class="h-[18px] w-[18px]"></i>
+                </span>
+                <span class="truncate group-data-[colapsado=true]/nav:lg:hidden">Panel</span>
             </a>
             {% endfor %}
         </nav>
