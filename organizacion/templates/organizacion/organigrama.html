@@ -10,12 +10,24 @@
         <h1 class="text-2xl font-semibold tracking-tight text-slate-900">Organigrama</h1>
         <p class="mt-1 text-sm text-slate-600">Estructura de puestos de la empresa.</p>
     </div>
-    {% if puede_editar %}
-    <a href="{% url 'organizacion:puesto_crear' %}"
-       class="inline-flex rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700">
-        Nuevo puesto
-    </a>
-    {% endif %}
+    <div class="flex flex-wrap items-center gap-2">
+        {% if organigrama_colapsable %}
+        <button type="button" id="org-expandir"
+                class="inline-flex rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+            Expandir todo
+        </button>
+        <button type="button" id="org-colapsar"
+                class="inline-flex rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+            Colapsar todo
+        </button>
+        {% endif %}
+        {% if puede_editar %}
+        <a href="{% url 'organizacion:puesto_crear' %}"
+           class="inline-flex rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700">
+            Nuevo puesto
+        </a>
+        {% endif %}
+    </div>
 </div>
 
 {% if sin_puesto %}
@@ -28,11 +40,61 @@
 </p>
 {% else %}
 <div class="mt-6 overflow-x-auto">
-    <ul class="min-w-[18rem] space-y-3">
+    <ul id="organigrama-arbol" class="min-w-[18rem] space-y-3">
         {% for raiz in raices %}
             {% include "organizacion/_organigrama_nodo.html" with nodo=raiz %}
         {% endfor %}
     </ul>
 </div>
+<script>
+    (function () {
+        const arbol = document.getElementById("organigrama-arbol");
+        if (!arbol) return;
+
+        function setNodo(btn, abierto) {
+            const id = btn.getAttribute("aria-controls");
+            const hijos = id ? document.getElementById(id) : null;
+            if (!hijos) return;
+            const nombre = btn.getAttribute("data-org-nombre") || "puestos";
+            btn.setAttribute("aria-expanded", abierto ? "true" : "false");
+            btn.setAttribute("aria-label", (abierto ? "Colapsar " : "Expandir ") + nombre);
+            hijos.classList.toggle("hidden", !abierto);
+            if (abierto) {
+                hijos.removeAttribute("hidden");
+            } else {
+                hijos.setAttribute("hidden", "");
+            }
+            const icono = btn.querySelector("svg");
+            if (icono) icono.classList.toggle("rotate-90", abierto);
+        }
+
+        function toggleDesde(origen) {
+            const btn = origen.closest("[data-org-card]")?.querySelector(".org-toggle")
+                || origen.closest(".org-toggle");
+            if (!btn || !arbol.contains(btn)) return;
+            const abierto = btn.getAttribute("aria-expanded") === "true";
+            setNodo(btn, !abierto);
+        }
+
+        arbol.addEventListener("click", function (event) {
+            if (event.target.closest("a")) return;
+            if (!event.target.closest("[data-org-card], .org-toggle")) return;
+            toggleDesde(event.target);
+        });
+
+        function setTodos(abierto) {
+            arbol.querySelectorAll(".org-toggle").forEach(function (btn) {
+                setNodo(btn, abierto);
+            });
+        }
+
+        document.getElementById("org-expandir")?.addEventListener("click", function () {
+            setTodos(true);
+        });
+        document.getElementById("org-colapsar")?.addEventListener("click", function () {
+            setTodos(false);
+        });
+    })();
+</script>
 {% endif %}
 {% endblock %}

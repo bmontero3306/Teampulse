@@ -55,6 +55,18 @@ class VistasOrganizacionTests(TestCase):
         self.assertContains(response, "Raíz A")
         self.assertNotContains(response, "Raíz B")
 
+    def test_organigrama_nodos_colapsados_por_defecto(self):
+        raiz = make_puesto(self.empresa_a, nombre="Director")
+        make_puesto(self.empresa_a, nombre="Analista", puesto_superior=raiz)
+        self.client.force_login(self.admin_a)
+        response = self.client.get(reverse("organizacion:organigrama"))
+        self.assertContains(response, "Expandir todo")
+        self.assertContains(response, "Colapsar todo")
+        self.assertContains(response, 'aria-expanded="false"')
+        self.assertContains(response, f'id="org-hijos-{raiz.pk}"')
+        self.assertContains(response, "Analista")
+        self.assertContains(response, "1 puesto a cargo")
+
     def test_referencia_circular_visible_en_form(self):
         gerente = make_puesto(self.empresa_a, nombre="Gerente")
         jefe = make_puesto(self.empresa_a, nombre="Jefe", puesto_superior=gerente)

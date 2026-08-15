@@ -108,6 +108,170 @@ def _upsert_named(model, empresa, nombre, **campos):
     return obj, False
 
 
+def _renombrar_si_existe(model, empresa, nombre_viejo, nombre_nuevo):
+    """Evita duplicar el organigrama legado al re-ejecutar el seed."""
+    if model.objects.filter(empresa=empresa, nombre=nombre_nuevo).exists():
+        return
+    obj = model.objects.filter(empresa=empresa, nombre=nombre_viejo).first()
+    if obj is not None:
+        obj.nombre = nombre_nuevo
+        obj.save(update_fields=["nombre"])
+
+
+def _upsert_area(empresa, nombre, area_padre=None):
+    area, _ = _upsert_named(
+        Area, empresa, nombre, area_padre=area_padre, activa=True
+    )
+    return area
+
+
+def _upsert_puesto(empresa, nombre, *, area, puesto_superior=None, descripcion=""):
+    puesto, _ = _upsert_named(
+        Puesto,
+        empresa,
+        nombre,
+        descripcion=descripcion,
+        area=area,
+        puesto_superior=puesto_superior,
+        activo=True,
+    )
+    return puesto
+
+
+def _seed_organigrama(empresa):
+    """Áreas y puestos del organigrama (sin las personas que ocupan cada caja)."""
+    _renombrar_si_existe(Area, empresa, "Operaciones", "Recursos Humanos")
+    _renombrar_si_existe(Puesto, empresa, "Jefe de equipo", "Gerente de RRHH")
+    _renombrar_si_existe(Puesto, empresa, "Analista", "Analistas RRHH")
+
+    direccion = _upsert_area(empresa, "Dirección General")
+    consultoria = _upsert_area(empresa, "Consultoría Externa", direccion)
+    transporte = _upsert_area(empresa, "Transporte y Logística", direccion)
+    obras = _upsert_area(empresa, "Obras y Sustentabilidad", direccion)
+    servicios = _upsert_area(empresa, "Servicios Empresariales", direccion)
+    admin_fin = _upsert_area(empresa, "Administración y Finanzas", direccion)
+    rrhh = _upsert_area(empresa, "Recursos Humanos", direccion)
+    comercial = _upsert_area(empresa, "Comercial", direccion)
+    taller = _upsert_area(empresa, "Taller y Mantenimiento de Flota", direccion)
+    sistemas = _upsert_area(empresa, "Sistemas", direccion)
+
+    presidente = _upsert_puesto(empresa, "Presidente y CEO", area=direccion)
+    vice = _upsert_puesto(
+        empresa, "Vicepresidente", area=direccion, puesto_superior=presidente
+    )
+    gerente_gral = _upsert_puesto(
+        empresa, "Gerente General", area=direccion, puesto_superior=vice
+    )
+    _upsert_puesto(
+        empresa,
+        "Consultoría Externa",
+        area=consultoria,
+        puesto_superior=gerente_gral,
+        descripcion="Asesoramiento en legales, seguridad e higiene y medicina laboral.",
+    )
+
+    ger_transporte = _upsert_puesto(
+        empresa,
+        "Gerencia de Transporte y Logística",
+        area=transporte,
+        puesto_superior=gerente_gral,
+    )
+    coord_log = _upsert_puesto(
+        empresa,
+        "Coordinador Logístico",
+        area=transporte,
+        puesto_superior=ger_transporte,
+    )
+    for nombre in (
+        "Operación de Transporte",
+        "Gestión y Control de Flota",
+        "Gestión Documental",
+        "Choferes",
+    ):
+        _upsert_puesto(empresa, nombre, area=transporte, puesto_superior=coord_log)
+
+    ger_obras = _upsert_puesto(
+        empresa,
+        "Gerencia de Obras y Sustentabilidad",
+        area=obras,
+        puesto_superior=gerente_gral,
+    )
+    for nombre in (
+        "Director de Obra",
+        "Planificación de Proyectos",
+        "Operación y Ejecución de Obras",
+    ):
+        _upsert_puesto(empresa, nombre, area=obras, puesto_superior=ger_obras)
+
+    ger_serv = _upsert_puesto(
+        empresa,
+        "Gerencia de Servicios Empresariales",
+        area=servicios,
+        puesto_superior=gerente_gral,
+    )
+    for nombre in (
+        "Operaciones de Servicios Empresariales",
+        "Choferes / Conductores",
+    ):
+        _upsert_puesto(empresa, nombre, area=servicios, puesto_superior=ger_serv)
+
+    ger_admin = _upsert_puesto(
+        empresa,
+        "Gerencia de Administración y Finanzas",
+        area=admin_fin,
+        puesto_superior=gerente_gral,
+    )
+    for nombre in ("Facturación y Cobranzas", "Compras", "Pagos", "Contable"):
+        _upsert_puesto(empresa, nombre, area=admin_fin, puesto_superior=ger_admin)
+
+    ger_rrhh = _upsert_puesto(
+        empresa, "Gerente de RRHH", area=rrhh, puesto_superior=gerente_gral
+    )
+    analistas_rrhh = _upsert_puesto(
+        empresa, "Analistas RRHH", area=rrhh, puesto_superior=ger_rrhh
+    )
+
+    _upsert_puesto(
+        empresa, "Gerencia Comercial", area=comercial, puesto_superior=gerente_gral
+    )
+
+    ger_taller = _upsert_puesto(
+        empresa,
+        "Gerencia de Taller y Mantenimiento de Flota",
+        area=taller,
+        puesto_superior=gerente_gral,
+    )
+    jefe_taller = _upsert_puesto(
+        empresa, "Jefe de Taller", area=taller, puesto_superior=ger_taller
+    )
+    sup_taller = _upsert_puesto(
+        empresa, "Supervisor de Taller", area=taller, puesto_superior=jefe_taller
+    )
+    for nombre in ("Mecánicos", "Soldadura y Pintura", "Depósito de Herramientas"):
+        _upsert_puesto(empresa, nombre, area=taller, puesto_superior=sup_taller)
+    sup_playa = _upsert_puesto(
+        empresa, "Supervisor de Playa", area=taller, puesto_superior=jefe_taller
+    )
+    for nombre in ("Mantenimiento Edilicio", "Seguridad"):
+        _upsert_puesto(empresa, nombre, area=taller, puesto_superior=sup_playa)
+
+    ger_sistemas = _upsert_puesto(
+        empresa, "Gerencia de Sistemas", area=sistemas, puesto_superior=gerente_gral
+    )
+    _upsert_puesto(
+        empresa,
+        "Desarrollo de Software y Aplicaciones",
+        area=sistemas,
+        puesto_superior=ger_sistemas,
+    )
+
+    return {
+        "area_rrhh": rrhh,
+        "puesto_supervisor": ger_rrhh,
+        "puesto_empleado": analistas_rrhh,
+    }
+
+
 def _respuestas(evaluacion, campo_puntaje, campo_comentario, puntaje, comentario):
     return {
         item.pk: {campo_puntaje: puntaje, campo_comentario: comentario}
@@ -190,25 +354,10 @@ def seed_demo(stdout=None):
         is_superuser=True,
     )
 
-    area, _ = _upsert_named(Area, empresa_a, "Operaciones", activa=True)
-    puesto_jefe, _ = _upsert_named(
-        Puesto,
-        empresa_a,
-        "Jefe de equipo",
-        descripcion="Coordina al equipo de analistas.",
-        area=area,
-        puesto_superior=None,
-        activo=True,
-    )
-    puesto_analista, _ = _upsert_named(
-        Puesto,
-        empresa_a,
-        "Analista",
-        descripcion="Puesto de analista de operaciones.",
-        area=area,
-        puesto_superior=puesto_jefe,
-        activo=True,
-    )
+    org = _seed_organigrama(empresa_a)
+    area = org["area_rrhh"]
+    puesto_jefe = org["puesto_supervisor"]
+    puesto_analista = org["puesto_empleado"]
 
     comp_tec, _ = _upsert_named(
         Competencia,
@@ -355,7 +504,7 @@ def seed_demo(stdout=None):
             for clave, valor in campos.items():
                 setattr(criterio, clave, valor)
             criterio.save()
-    for puesto in (puesto_jefe, puesto_analista):
+    for puesto in Puesto.objects.filter(empresa=empresa_a, activo=True):
         PlantillaPuesto.objects.get_or_create(plantilla=plantilla, puesto=puesto)
 
     ciclo = CicloEvaluacion.objects.filter(

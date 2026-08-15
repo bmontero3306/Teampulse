@@ -103,9 +103,12 @@ class OrganigramaView(OrganizacionLecturaMixin, TemplateView):
             if raiz is None:
                 ctx["raices"] = []
                 ctx["sin_puesto"] = True
+                ctx["organigrama_colapsable"] = False
                 return ctx
         ctx["sin_puesto"] = False
-        ctx["raices"] = query_organigrama(empresa, solo_activos=True, raiz=raiz)
+        raices = query_organigrama(empresa, solo_activos=True, raiz=raiz)
+        ctx["raices"] = raices
+        ctx["organigrama_colapsable"] = any(n.hijos_organigrama for n in raices)
         return ctx
 
 
