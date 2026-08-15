@@ -7,6 +7,9 @@ CUENTA_BLOQUEO = "cuenta_bloqueo"
 CICLO_ACTIVADO = "ciclo_activado"
 AUTOEVALUACION_ENVIADA = "autoevaluacion_enviada"
 EVALUACION_SUPERVISOR_CERRADA = "evaluacion_supervisor_cerrada"
+REUNION_FEEDBACK_REGISTRADA = "reunion_feedback_registrada"
+CONFORMIDAD_HABILITADA = "conformidad_habilitada"
+EVALUADOR_ASIGNADO = "evaluador_asignado"
 CONFORMIDAD_FIRMADA = "conformidad_firmada"
 CONFORMIDAD_OBSERVACION = "conformidad_observacion"
 CICLO_PAUSADO = "ciclo_pausado"
@@ -22,6 +25,9 @@ TIPOS = (
     (CICLO_ACTIVADO, "Ciclo activado"),
     (AUTOEVALUACION_ENVIADA, "Autoevaluación enviada"),
     (EVALUACION_SUPERVISOR_CERRADA, "Evaluación de supervisor cerrada"),
+    (REUNION_FEEDBACK_REGISTRADA, "Reunión de feedback registrada"),
+    (CONFORMIDAD_HABILITADA, "Conformidad habilitada"),
+    (EVALUADOR_ASIGNADO, "Evaluador asignado"),
     (CONFORMIDAD_FIRMADA, "Conformidad firmada"),
     (CONFORMIDAD_OBSERVACION, "Observación de disconformidad"),
     (CICLO_PAUSADO, "Ciclo pausado"),
@@ -85,7 +91,27 @@ PLANTILLAS = {
         "titulo": "Tu evaluación de supervisor está lista",
         "mensaje": (
             "El supervisor cerró tu evaluación del ciclo «{ciclo}». "
-            "Revisá el resultado y firmá la conformidad."
+            "Ya podés ver la comparación. {siguiente}"
+        ),
+    },
+    REUNION_FEEDBACK_REGISTRADA: {
+        "titulo": "Se registró la reunión de feedback",
+        "mensaje": (
+            "Quedó registrada la reunión de feedback del ciclo «{ciclo}». "
+            "Ya podés firmar la conformidad."
+        ),
+    },
+    CONFORMIDAD_HABILITADA: {
+        "titulo": "Ya podés firmar la conformidad",
+        "mensaje": (
+            "El feedback del ciclo «{ciclo}» quedó en el sistema. "
+            "Ya podés firmar la conformidad."
+        ),
+    },
+    EVALUADOR_ASIGNADO: {
+        "titulo": "Te asignaron una evaluación",
+        "mensaje": (
+            "RRHH te asignó como evaluador de {evaluado} en el ciclo «{ciclo}»."
         ),
     },
     CONFORMIDAD_FIRMADA: {

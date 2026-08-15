@@ -63,7 +63,7 @@
 {% if sin_evaluador_list %}
 <section class="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 sm:p-6">
     <h2 class="text-lg font-semibold text-amber-900">Participantes sin evaluador</h2>
-    <p class="mt-1 text-sm text-amber-800">El ciclo se activó igual; RRHH debe asignar un evaluador en el organigrama para el próximo ciclo.</p>
+    <p class="mt-1 text-sm text-amber-800">El ciclo se activó igual. Asigná un evaluador acá para que puedan continuar.</p>
     <ul class="mt-3 list-disc space-y-1 pl-5 text-sm text-amber-900">
         {% for ev in sin_evaluador_list %}
         <li>{{ ev.evaluado.get_full_name|default:ev.evaluado.email }} · {{ ev.puesto.nombre }}</li>
@@ -126,14 +126,26 @@
                     <td class="px-4 py-3 font-medium text-slate-900">{{ ev.evaluado.get_full_name|default:ev.evaluado.email }}</td>
                     <td class="px-4 py-3 text-slate-600">{{ ev.puesto.nombre }}</td>
                     <td class="px-4 py-3 text-slate-600">
-                        {% if ev.sin_evaluador %}
+                        {% if ev.form_reasignar %}
+                        <form method="post" action="{% url 'evaluaciones:reasignar' ev.pk %}" class="flex flex-wrap items-center gap-2">
+                            {% csrf_token %}
+                            <label class="sr-only" for="{{ ev.form_reasignar.evaluador.id_for_label }}">Evaluador</label>
+                            {{ ev.form_reasignar.evaluador }}
+                            <button type="submit" class="rounded-lg bg-sky-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-700">Asignar</button>
+                        </form>
+                        {% elif ev.sin_evaluador %}
                         <span class="text-amber-800">Sin evaluador</span>
                         {% else %}
                         {{ ev.evaluador.get_full_name|default:ev.evaluador.email }}
                         {% endif %}
                     </td>
                     <td class="px-4 py-3">
-                        {% include "evaluaciones/_badge_estado.html" with estado=ev.estado contexto="evaluacion" etiqueta=ev.get_estado_display %}
+                        <div class="flex flex-wrap items-center gap-2">
+                            {% include "evaluaciones/_badge_estado.html" with estado=ev.estado contexto="evaluacion" etiqueta=ev.get_estado_display %}
+                            {% if ev.comparacion_revelada and puede_gestionar %}
+                            <a href="{% url 'evaluaciones:resultado' ev.pk %}" class="text-xs font-medium text-sky-700 hover:text-sky-900">Ver</a>
+                            {% endif %}
+                        </div>
                     </td>
                 </tr>
                 {% empty %}

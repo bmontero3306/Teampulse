@@ -24,6 +24,9 @@ from notificaciones.events import (
     CONFORMIDAD_FIRMADA,
     CONFORMIDAD_OBSERVACION,
     EVALUACION_SUPERVISOR_CERRADA,
+    EVALUADOR_ASIGNADO,
+    REUNION_FEEDBACK_REGISTRADA,
+    CONFORMIDAD_HABILITADA,
 )
 from notificaciones.services import notificar
 
@@ -418,7 +421,14 @@ def guardar_autoevaluacion(evaluacion, respuestas, enviar, usuario, request=None
 
 @transaction.atomic
 def guardar_eval_supervisor(
-    evaluacion, respuestas, feedback_supervisor, cerrar, usuario, request=None
+    evaluacion,
+    respuestas,
+    feedback_supervisor,
+    cerrar,
+    usuario,
+    request=None,
+    *,
+    habilitar_reunion=False,
 ):
     """respuestas: dict {respuesta_id: {puntaje_supervisor, comentario_supervisor}}."""
     _asegurar_ciclo_editable(evaluacion.ciclo)
@@ -470,7 +480,17 @@ def guardar_eval_supervisor(
                 raise EvaluacionesError(
                     f"El comentario del supervisor es obligatorio en «{item.criterio.competencia}»."
                 )
-        evaluacion.estado = Evaluacion.Estado.PENDIENTE_CONFORMIDAD
+        if habilitar_reunion:
+            evaluacion.estado = Evaluacion.Estado.PENDIENTE_COMPARACION
+            siguiente = (
+                "El supervisor habilitó una reunión de feedback; "
+                "te avisaremos cuando se registre."
+            )
+        else:
+            evaluacion.estado = Evaluacion.Estado.PENDIENTE_CONFORMIDAD
+            siguiente = (
+                "El feedback quedó en el sistema. Ya podés firmar la conformidad."
+            )
         evaluacion.cerrada_supervisor_en = timezone.now()
         evaluacion.save(
             update_fields=["estado", "feedback_supervisor", "cerrada_supervisor_en"]
@@ -489,7 +509,10 @@ def guardar_eval_supervisor(
         accion="cerrar_supervisor" if cerrar else "guardar_supervisor",
         instance=evaluacion,
         usuario=usuario,
-        payload={"estado": evaluacion.estado},
+        payload={
+            "estado": evaluacion.estado,
+            "habilitar_reunion": bool(habilitar_reunion) if cerrar else False,
+        },
     )
     if cerrar:
         notificar(
@@ -501,6 +524,7 @@ def guardar_eval_supervisor(
                 "evaluado": evaluacion.evaluado.get_full_name()
                 or evaluacion.evaluado.email,
                 "url": reverse("evaluaciones:resultado", args=[evaluacion.pk]),
+                "siguiente": siguiente,
             },
         )
     return evaluacion
@@ -574,3 +598,166 @@ def firmar_conformidad(evaluacion, user, ip, observacion=None):
             contexto=contexto,
         )
     return evaluacion
+
+
+def _es_rrhh(usuario):
+    return getattr(usuario, "rol", None) in (
+        Usuario.Rol.ADMIN_RRHH,
+        Usuario.Rol.SUPERADMIN,
+    )
+
+
+def _puede_registrar_reunion(evaluacion, usuario):
+    if evaluacion.evaluador_id == getattr(usuario, "pk", None):
+        return True
+    return _es_rrhh(usuario)
+
+
+def candidatos_evaluador(evaluacion):
+    return (
+        Usuario.objects.filter(
+            empresa=evaluacion.empresa,
+            is_active=True,
+            bloqueado=False,
+        )
+        .exclude(pk=evaluacion.evaluado_id)
+        .order_by("last_name", "first_name", "email")
+    )
+
+
+@transaction.atomic
+def registrar_reunion_feedback(
+    evaluacion, reunion_fecha, reunion_notas, usuario, request=None
+):
+    _asegurar_ciclo_editable(evaluacion.ciclo)
+    if not _puede_registrar_reunion(evaluacion, usuario):
+        raise EvaluacionesError(
+            "Solo el evaluador o RRHH pueden registrar la reunión de feedback."
+        )
+    if evaluacion.estado != Evaluacion.Estado.PENDIENTE_COMPARACION:
+        raise EvaluacionesError(
+            "La reunión de feedback se registra después de comparar ambas evaluaciones."
+        )
+    if reunion_fecha is None:
+        raise EvaluacionesError("La fecha de la reunión es obligatoria.")
+    notas = (reunion_notas or "").strip()
+    if not notas:
+        raise EvaluacionesError("Las notas de la reunión son obligatorias.")
+    if timezone.is_naive(reunion_fecha):
+        reunion_fecha = timezone.make_aware(
+            reunion_fecha, timezone.get_current_timezone()
+        )
+    evaluacion.reunion_fecha = reunion_fecha
+    evaluacion.reunion_notas = notas
+    evaluacion.reunion_registrada_en = timezone.now()
+    evaluacion.reunion_registrada_por = usuario
+    evaluacion.estado = Evaluacion.Estado.PENDIENTE_CONFORMIDAD
+    evaluacion.save(
+        update_fields=[
+            "reunion_fecha",
+            "reunion_notas",
+            "reunion_registrada_en",
+            "reunion_registrada_por",
+            "estado",
+        ]
+    )
+    registrar_auditoria(
+        request,
+        accion="registrar_reunion",
+        instance=evaluacion,
+        usuario=usuario,
+        payload={"estado": evaluacion.estado},
+    )
+    notificar(
+        tipo=REUNION_FEEDBACK_REGISTRADA,
+        usuario=evaluacion.evaluado,
+        empresa=evaluacion.empresa,
+        contexto={
+            "ciclo": evaluacion.ciclo.nombre,
+            "evaluado": evaluacion.evaluado.get_full_name()
+            or evaluacion.evaluado.email,
+            "url": reverse("evaluaciones:resultado", args=[evaluacion.pk]),
+        },
+    )
+    return evaluacion
+
+
+@transaction.atomic
+def omitir_reunion_feedback(evaluacion, usuario, request=None):
+    _asegurar_ciclo_editable(evaluacion.ciclo)
+    if not _puede_registrar_reunion(evaluacion, usuario):
+        raise EvaluacionesError(
+            "Solo el evaluador o RRHH pueden continuar sin reunión de feedback."
+        )
+    if evaluacion.estado != Evaluacion.Estado.PENDIENTE_COMPARACION:
+        raise EvaluacionesError(
+            "Solo se puede omitir la reunión mientras la comparación está pendiente."
+        )
+    if not (evaluacion.feedback_supervisor or "").strip():
+        raise EvaluacionesError(
+            "El feedback del supervisor es obligatorio para continuar por el sistema."
+        )
+    evaluacion.estado = Evaluacion.Estado.PENDIENTE_CONFORMIDAD
+    evaluacion.save(update_fields=["estado"])
+    registrar_auditoria(
+        request,
+        accion="omitir_reunion",
+        instance=evaluacion,
+        usuario=usuario,
+        payload={"estado": evaluacion.estado},
+    )
+    notificar(
+        tipo=CONFORMIDAD_HABILITADA,
+        usuario=evaluacion.evaluado,
+        empresa=evaluacion.empresa,
+        contexto={
+            "ciclo": evaluacion.ciclo.nombre,
+            "evaluado": evaluacion.evaluado.get_full_name()
+            or evaluacion.evaluado.email,
+            "url": reverse("evaluaciones:resultado", args=[evaluacion.pk]),
+        },
+    )
+    return evaluacion
+
+
+@transaction.atomic
+def reasignar_evaluador(evaluacion, evaluador, usuario, request=None):
+    _asegurar_ciclo_editable(evaluacion.ciclo)
+    if not _es_rrhh(usuario):
+        raise EvaluacionesError("Solo RRHH puede asignar un evaluador.")
+    if not evaluacion.sin_evaluador:
+        raise EvaluacionesError("Esta evaluación ya tiene evaluador asignado.")
+    if evaluador is None:
+        raise EvaluacionesError("Tenés que elegir un evaluador.")
+    if evaluador.pk == evaluacion.evaluado_id:
+        raise EvaluacionesError(
+            "El evaluador no puede ser la misma persona evaluada."
+        )
+    if evaluador.empresa_id != evaluacion.empresa_id:
+        raise EvaluacionesError("El evaluador debe pertenecer a la misma empresa.")
+    if not evaluador.is_active or evaluador.bloqueado:
+        raise EvaluacionesError("El evaluador no está activo.")
+
+    evaluacion.evaluador = evaluador
+    evaluacion.sin_evaluador = False
+    evaluacion.save(update_fields=["evaluador", "sin_evaluador"])
+    registrar_auditoria(
+        request,
+        accion="reasignar_evaluador",
+        instance=evaluacion,
+        usuario=usuario,
+        payload={"evaluador_id": evaluador.pk},
+    )
+    notificar(
+        tipo=EVALUADOR_ASIGNADO,
+        usuario=evaluador,
+        empresa=evaluacion.empresa,
+        contexto={
+            "ciclo": evaluacion.ciclo.nombre,
+            "evaluado": evaluacion.evaluado.get_full_name()
+            or evaluacion.evaluado.email,
+            "url": reverse("evaluaciones:equipo"),
+        },
+    )
+    return evaluacion
+

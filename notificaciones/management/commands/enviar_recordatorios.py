@@ -53,8 +53,14 @@ class Command(BaseCommand):
             Evaluacion.Estado.AUTO_COMPLETA,
             Evaluacion.Estado.SUPERVISOR_BORRADOR,
         )
+        pendientes_reunion = (Evaluacion.Estado.PENDIENTE_COMPARACION,)
         pendientes_firma = (Evaluacion.Estado.PENDIENTE_CONFORMIDAD,)
-        estados = pendientes_auto + pendientes_supervisor + pendientes_firma
+        estados = (
+            pendientes_auto
+            + pendientes_supervisor
+            + pendientes_reunion
+            + pendientes_firma
+        )
 
         qs = (
             Evaluacion.objects.filter(
@@ -74,6 +80,9 @@ class Command(BaseCommand):
             elif evaluacion.estado in pendientes_supervisor:
                 usuario = evaluacion.evaluador
                 url = reverse("evaluaciones:supervisar", args=[evaluacion.pk])
+            elif evaluacion.estado in pendientes_reunion:
+                usuario = evaluacion.evaluador
+                url = reverse("evaluaciones:resultado", args=[evaluacion.pk])
             else:
                 usuario = evaluacion.evaluado
                 url = reverse("evaluaciones:resultado", args=[evaluacion.pk])

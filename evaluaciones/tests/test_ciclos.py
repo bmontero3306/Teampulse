@@ -25,6 +25,7 @@ from evaluaciones.services import (
     cancelar_ciclo,
     guardar_autoevaluacion,
     pausar_ciclo,
+    reasignar_evaluador,
 )
 
 
@@ -59,7 +60,14 @@ def _formset_auto(evaluacion, puntaje=4, comentario="Ok", accion="enviar"):
     return data
 
 
-def _formset_sup(evaluacion, puntaje=5, comentario="Bien", feedback="Feedback", accion="cerrar"):
+def _formset_sup(
+    evaluacion,
+    puntaje=5,
+    comentario="Bien",
+    feedback="Feedback",
+    accion="cerrar",
+    habilitar_reunion=False,
+):
     items = list(evaluacion.respuestas.order_by("criterio__orden", "pk"))
     data = {
         "items-TOTAL_FORMS": str(len(items)),
@@ -69,6 +77,8 @@ def _formset_sup(evaluacion, puntaje=5, comentario="Bien", feedback="Feedback", 
         "feedback_supervisor": feedback,
         "accion": accion,
     }
+    if habilitar_reunion:
+        data["habilitar_reunion"] = "on"
     for i, item in enumerate(items):
         data[f"items-{i}-id"] = str(item.pk)
         data[f"items-{i}-puntaje_supervisor"] = "" if puntaje is None else str(puntaje)
@@ -253,3 +263,48 @@ class CancelarYPausarTests(CicloBaseTestCase):
         self.assertTrue(Evaluacion.objects.filter(pk=evaluacion.pk).exists())
         self.ciclo.refresh_from_db()
         self.assertEqual(self.ciclo.estado, CicloEvaluacion.Estado.PAUSADO)
+
+
+class ReasignarEvaluadorTests(CicloBaseTestCase):
+    def test_reasignar_falla_si_ya_tiene_evaluador(self):
+        activar_ciclo(self.ciclo, self.admin)
+        evaluacion = Evaluacion.objects.get(ciclo=self.ciclo, evaluado=self.empleado)
+        self.assertFalse(evaluacion.sin_evaluador)
+        with self.assertRaises(EvaluacionesError):
+            reasignar_evaluador(evaluacion, self.admin, self.admin)
+
+    def test_reasignar_servicio_si_falta(self):
+        self.empleado.supervisor = None
+        self.empleado.save(update_fields=["supervisor"])
+        self.puesto.puesto_superior = None
+        self.puesto.save(update_fields=["puesto_superior"])
+        activar_ciclo(self.ciclo, self.admin)
+        evaluacion = Evaluacion.objects.get(ciclo=self.ciclo, evaluado=self.empleado)
+        self.assertTrue(evaluacion.sin_evaluador)
+        reasignar_evaluador(evaluacion, self.supervisor, self.admin)
+        evaluacion.refresh_from_db()
+        self.assertFalse(evaluacion.sin_evaluador)
+        self.assertEqual(evaluacion.evaluador_id, self.supervisor.pk)
+
+    def test_reasignar_por_vista(self):
+        self.empleado.supervisor = None
+        self.empleado.save(update_fields=["supervisor"])
+        self.puesto.puesto_superior = None
+        self.puesto.save(update_fields=["puesto_superior"])
+        activar_ciclo(self.ciclo, self.admin)
+        evaluacion = Evaluacion.objects.get(ciclo=self.ciclo, evaluado=self.empleado)
+        self.assertTrue(evaluacion.sin_evaluador)
+        self.client.force_login(self.admin)
+        detalle = self.client.get(
+            reverse("evaluaciones:ciclo_detalle", args=[self.ciclo.pk])
+        )
+        self.assertContains(detalle, "Asignar")
+        response = self.client.post(
+            reverse("evaluaciones:reasignar", args=[evaluacion.pk]),
+            {"evaluador": str(self.supervisor.pk)},
+        )
+        self.assertEqual(response.status_code, 302)
+        evaluacion.refresh_from_db()
+        self.assertFalse(evaluacion.sin_evaluador)
+        self.assertEqual(evaluacion.evaluador_id, self.supervisor.pk)
+

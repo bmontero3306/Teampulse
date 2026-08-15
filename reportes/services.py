@@ -15,6 +15,7 @@ ESTADOS_AUTO_COMPLETA = frozenset(
     {
         Evaluacion.Estado.AUTO_COMPLETA,
         Evaluacion.Estado.SUPERVISOR_BORRADOR,
+        Evaluacion.Estado.PENDIENTE_COMPARACION,
         Evaluacion.Estado.PENDIENTE_CONFORMIDAD,
         Evaluacion.Estado.CERRADA,
         Evaluacion.Estado.CERRADA_CON_OBS,
@@ -22,6 +23,7 @@ ESTADOS_AUTO_COMPLETA = frozenset(
 )
 ESTADOS_SUPERVISOR = frozenset(
     {
+        Evaluacion.Estado.PENDIENTE_COMPARACION,
         Evaluacion.Estado.PENDIENTE_CONFORMIDAD,
         Evaluacion.Estado.CERRADA,
         Evaluacion.Estado.CERRADA_CON_OBS,

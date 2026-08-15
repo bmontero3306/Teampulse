@@ -112,12 +112,13 @@ class RecorridoFlujoAceptacionTests(CicloBaseTestCase):
         equipo = self.client.get(reverse("evaluaciones:equipo"))
         self.assertEqual(equipo.status_code, 200)
         self.assertContains(equipo, self.empleado.first_name)
-        comparativo = self.client.get(
+        ciego = self.client.get(
             reverse("evaluaciones:supervisar", args=[evaluacion.pk])
         )
-        self.assertEqual(comparativo.status_code, 200)
-        self.assertContains(comparativo, "vista comparativa")
-        self.assertContains(comparativo, "4")
+        self.assertEqual(ciego.status_code, 200)
+        self.assertContains(ciego, "sin ver la autoevaluación")
+        self.assertNotContains(ciego, "vista comparativa")
+        self.assertNotContains(ciego, "Listo UAT")
         cerrar = self.client.post(
             reverse("evaluaciones:supervisar", args=[evaluacion.pk]),
             _formset_sup(evaluacion, puntaje=5, feedback="Feedback UAT", accion="cerrar"),
@@ -125,6 +126,15 @@ class RecorridoFlujoAceptacionTests(CicloBaseTestCase):
         self.assertEqual(cerrar.status_code, 302)
         evaluacion.refresh_from_db()
         self.assertEqual(evaluacion.estado, Evaluacion.Estado.PENDIENTE_CONFORMIDAD)
+
+        comparacion = self.client.get(
+            reverse("evaluaciones:resultado", args=[evaluacion.pk])
+        )
+        self.assertEqual(comparacion.status_code, 200)
+        self.assertContains(comparacion, "Listo UAT")
+        self.assertContains(comparacion, "Feedback UAT")
+        self.assertContains(comparacion, "Brecha")
+        self.assertContains(comparacion, "Por el sistema, sin reunión")
         _logout(self.client)
 
         _login(self.client, self.empleado.email)
@@ -145,6 +155,17 @@ class RecorridoFlujoAceptacionTests(CicloBaseTestCase):
         self.assertEqual(evaluacion.estado, Evaluacion.Estado.CERRADA)
         self.assertContains(comprobante, "Comprobante de firma")
         self.assertContains(comprobante, evaluacion.firma_hash)
+        self.assertContains(comprobante, "Imprimir PDF")
+        pdf = self.client.get(
+            reverse("evaluaciones:resultado_pdf", args=[evaluacion.pk])
+        )
+        self.assertEqual(pdf.status_code, 200)
+        self.assertEqual(pdf["Content-Type"], CONTENT_TYPE_PDF)
+        self.assertTrue(pdf.content.startswith(b"%PDF"), "La respuesta no es un PDF")
+        self.assertTrue(
+            evaluacion.firma_hash.encode("ascii") in pdf.content,
+            "Falta el hash de firma digital",
+        )
         _logout(self.client)
 
         self.assertTrue(

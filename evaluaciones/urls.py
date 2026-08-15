@@ -62,6 +62,11 @@ urlpatterns = [
         name="resultado",
     ),
     path(
+        "<int:pk>/resultado/pdf/",
+        views_flujo.ResultadoPdfView.as_view(),
+        name="resultado_pdf",
+    ),
+    path(
         "<int:pk>/firmar/",
         views_flujo.FirmarView.as_view(),
         name="firmar",
@@ -70,5 +75,10 @@ urlpatterns = [
         "<int:pk>/supervisar/",
         views_flujo.SupervisarView.as_view(),
         name="supervisar",
+    ),
+    path(
+        "<int:pk>/reasignar/",
+        views_ciclos.ReasignarEvaluadorView.as_view(),
+        name="reasignar",
     ),
 ]

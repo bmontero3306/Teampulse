@@ -88,6 +88,8 @@ class EvaluacionAdmin(admin.ModelAdmin):
         "ip_firma",
         "enviada_auto_en",
         "cerrada_supervisor_en",
+        "reunion_registrada_en",
+        "reunion_registrada_por",
     )
     inlines = [RespuestaItemInline]
 

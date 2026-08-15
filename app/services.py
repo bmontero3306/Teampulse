@@ -8,11 +8,13 @@ from evaluaciones.models import CicloEvaluacion, Evaluacion
 ESTADOS_AUTO = [
     Evaluacion.Estado.AUTO_COMPLETA,
     Evaluacion.Estado.SUPERVISOR_BORRADOR,
+    Evaluacion.Estado.PENDIENTE_COMPARACION,
     Evaluacion.Estado.PENDIENTE_CONFORMIDAD,
     Evaluacion.Estado.CERRADA,
     Evaluacion.Estado.CERRADA_CON_OBS,
 ]
 ESTADOS_SUPERVISOR = [
+    Evaluacion.Estado.PENDIENTE_COMPARACION,
     Evaluacion.Estado.PENDIENTE_CONFORMIDAD,
     Evaluacion.Estado.CERRADA,
     Evaluacion.Estado.CERRADA_CON_OBS,
@@ -28,6 +30,7 @@ ESTADOS_SIN_AUTO = [
 ESTADOS_PENDIENTE_EMPLEADO = [
     Evaluacion.Estado.PENDIENTE_AUTO,
     Evaluacion.Estado.AUTO_BORRADOR,
+    Evaluacion.Estado.PENDIENTE_COMPARACION,
     Evaluacion.Estado.PENDIENTE_CONFORMIDAD,
 ]
 
@@ -102,6 +105,19 @@ def pendientes_empleado(user, empresa, ciclo):
                     ),
                 }
             )
+        elif evaluacion.estado == Evaluacion.Estado.PENDIENTE_COMPARACION:
+            items.append(
+                {
+                    "evaluacion": evaluacion,
+                    "tipo": "comparacion",
+                    "accion": "Ver comparación",
+                    "href": _ruta(
+                        "evaluaciones:resultado",
+                        f"/evaluaciones/{evaluacion.pk}/resultado/",
+                        args=[evaluacion.pk],
+                    ),
+                }
+            )
         else:
             items.append(
                 {
@@ -127,6 +143,7 @@ def accesos_rapidos_empleado(pendientes):
         }
     ]
     auto = next((item for item in pendientes if item["tipo"] == "auto"), None)
+    comparacion = next((item for item in pendientes if item["tipo"] == "comparacion"), None)
     firma = next((item for item in pendientes if item["tipo"] == "firma"), None)
     if auto:
         accesos.append(
@@ -134,6 +151,14 @@ def accesos_rapidos_empleado(pendientes):
                 "clave": "auto",
                 "etiqueta": "Autoevaluación",
                 "href": auto["href"],
+            }
+        )
+    if comparacion:
+        accesos.append(
+            {
+                "clave": "comparacion",
+                "etiqueta": "Ver comparación",
+                "href": comparacion["href"],
             }
         )
     if firma:

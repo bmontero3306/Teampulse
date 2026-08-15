@@ -274,3 +274,26 @@ class DashboardKpisRealesTests(TestCase):
         self.assertEqual(len(response.context["equipo_resumen"]["alertas_sin_auto"]), 1)
         self.assertNotContains(response, 'data-widget="kpis"')
         self.assertContains(response, "overflow-x-auto")
+
+    def test_pendiente_comparacion_cuenta_en_kpis_y_pendientes(self):
+        empleado = make_usuario(
+            self.empresa,
+            rol="empleado",
+            puesto=self.puesto,
+        )
+        make_evaluacion(
+            self.ciclo,
+            empleado,
+            estado=Evaluacion.Estado.PENDIENTE_COMPARACION,
+        )
+        self.client.force_login(self.admin)
+        kpis = self.client.get(reverse("app:dashboard")).context["kpis"]
+        self.assertEqual(kpis["auto"], 1)
+        self.assertEqual(kpis["supervisor"], 1)
+        self.assertEqual(kpis["firmadas"], 0)
+
+        self.client.force_login(empleado)
+        response = self.client.get(reverse("app:dashboard"))
+        self.assertContains(response, "Ver comparación")
+        self.assertContains(response, 'data-acceso="comparacion"')
+

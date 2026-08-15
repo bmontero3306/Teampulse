@@ -253,6 +253,7 @@ class Evaluacion(models.Model):
         AUTO_BORRADOR = "auto_borrador", "Autoevaluación en borrador"
         AUTO_COMPLETA = "auto_completa", "Autoevaluación completa"
         SUPERVISOR_BORRADOR = "supervisor_borrador", "Evaluación de supervisor en borrador"
+        PENDIENTE_COMPARACION = "pendiente_comparacion", "Pendiente de comparación"
         PENDIENTE_CONFORMIDAD = "pendiente_conformidad", "Pendiente de conformidad"
         CERRADA = "cerrada", "Cerrada"
         CERRADA_CON_OBS = "cerrada_con_obs", "Cerrada con observación"
@@ -307,6 +308,21 @@ class Evaluacion(models.Model):
         blank=True,
     )
     feedback_supervisor = models.TextField("feedback del supervisor", blank=True)
+    reunion_fecha = models.DateTimeField("fecha de reunión de feedback", null=True, blank=True)
+    reunion_notas = models.TextField("notas de la reunión de feedback", blank=True)
+    reunion_registrada_en = models.DateTimeField(
+        "reunión registrada en",
+        null=True,
+        blank=True,
+    )
+    reunion_registrada_por = models.ForeignKey(
+        "cuentas.Usuario",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reuniones_feedback_registradas",
+        verbose_name="reunión registrada por",
+    )
     enviada_auto_en = models.DateTimeField("enviada autoevaluación en", null=True, blank=True)
     cerrada_supervisor_en = models.DateTimeField(
         "cerrada por supervisor en",
@@ -336,6 +352,15 @@ class Evaluacion(models.Model):
     @property
     def esta_cerrada(self):
         return self.estado in (self.Estado.CERRADA, self.Estado.CERRADA_CON_OBS)
+
+    @property
+    def comparacion_revelada(self):
+        return self.estado in (
+            self.Estado.PENDIENTE_COMPARACION,
+            self.Estado.PENDIENTE_CONFORMIDAD,
+            self.Estado.CERRADA,
+            self.Estado.CERRADA_CON_OBS,
+        )
 
 
 class RespuestaItem(models.Model):
@@ -373,3 +398,17 @@ class RespuestaItem(models.Model):
 
     def __str__(self):
         return f"{self.evaluacion} · {self.criterio}"
+
+    @property
+    def brecha(self):
+        if self.puntaje_empleado is None or self.puntaje_supervisor is None:
+            return None
+        return self.puntaje_supervisor - self.puntaje_empleado
+
+    @property
+    def brecha_display(self):
+        if self.brecha is None:
+            return "—"
+        if self.brecha > 0:
+            return f"+{self.brecha}"
+        return str(self.brecha)

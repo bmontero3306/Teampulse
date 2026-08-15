@@ -4,7 +4,7 @@
 
 {% block content %}
 <h1 class="text-2xl font-semibold tracking-tight text-slate-900">Mis evaluaciones</h1>
-<p class="mt-1 text-sm text-slate-600">Autoevaluación, resultado y firma de conformidad.</p>
+<p class="mt-1 text-sm text-slate-600">Autoevaluación, comparación 180° y firma de conformidad.</p>
 
 <div class="mt-6 overflow-x-auto rounded-xl border border-slate-200 bg-white">
     <table class="min-w-full text-left text-sm">
@@ -31,6 +31,8 @@
                 <td class="px-4 py-3 text-right whitespace-nowrap">
                     {% if ev.estado == "pendiente_auto" or ev.estado == "auto_borrador" %}
                     <a href="{% url 'evaluaciones:auto' ev.pk %}" class="font-medium text-sky-700 hover:text-sky-900">Completar</a>
+                    {% elif ev.estado == "pendiente_comparacion" %}
+                    <a href="{% url 'evaluaciones:resultado' ev.pk %}" class="font-medium text-sky-700 hover:text-sky-900">Ver comparación</a>
                     {% elif ev.estado == "pendiente_conformidad" %}
                     <a href="{% url 'evaluaciones:resultado' ev.pk %}" class="font-medium text-sky-700 hover:text-sky-900">Firmar</a>
                     {% else %}

@@ -1,23 +1,37 @@
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views import View
 from django.views.generic import ListView
 
 from app.mixins import EmpresaRequiredMixin, RolRequiredMixin
+from auditoria.constants import Accion
+from auditoria.services import registrar_auditoria
 from cuentas.models import Usuario
 from evaluaciones.exceptions import EvaluacionesError
 from evaluaciones.forms import (
     ObservacionConformidadForm,
+    ReunionFeedbackForm,
     SupervisorCierreForm,
     autoevaluacion_formset,
     supervisor_formset,
 )
 from evaluaciones.models import Evaluacion
+from evaluaciones.pdf import (
+    CONTENT_TYPE_PDF,
+    exportar_resultado_pdf,
+    nombre_archivo_pdf,
+)
 from evaluaciones.services import (
+    _es_rrhh,
+    _puede_registrar_reunion,
     firmar_conformidad,
     guardar_autoevaluacion,
     guardar_eval_supervisor,
+    omitir_reunion_feedback,
+    registrar_reunion_feedback,
 )
 
 ROLES_FLUJO_PROPIO = [
@@ -41,9 +55,14 @@ def _get_evaluacion(request, pk):
     return get_object_or_404(
         Evaluacion.objects.for_empresa(request.empresa).select_related(
             "ciclo",
+            "empresa",
             "evaluado",
+            "evaluado__area",
+            "evaluado__puesto",
             "evaluador",
+            "evaluador__puesto",
             "puesto",
+            "puesto__area",
             "plantilla",
         ),
         pk=pk,
@@ -61,6 +80,27 @@ def _respuestas_desde_formset(formset, puntaje_field, comentario_field):
             comentario_field: cleaned.get(comentario_field) or "",
         }
     return datos
+
+
+def _puede_ver_resultado(user, evaluacion):
+    if evaluacion.evaluado_id == user.pk:
+        return True
+    if not evaluacion.comparacion_revelada:
+        return False
+    if evaluacion.evaluador_id == user.pk:
+        return True
+    return _es_rrhh(user)
+
+
+def _volver_resultado(user, evaluacion):
+    if evaluacion.evaluado_id == user.pk:
+        return reverse("evaluaciones:mias"), "← Mis evaluaciones"
+    if evaluacion.evaluador_id == user.pk:
+        return reverse("evaluaciones:equipo"), "← Equipo"
+    return (
+        reverse("evaluaciones:ciclo_detalle", args=[evaluacion.ciclo_id]),
+        "← Ciclo",
+    )
 
 
 class FlujoPropioMixin(EmpresaRequiredMixin, RolRequiredMixin):
@@ -162,24 +202,98 @@ class ResultadoView(FlujoPropioMixin, View):
 
     def get(self, request, pk):
         evaluacion = _get_evaluacion(request, pk)
-        if evaluacion.evaluado_id != request.user.pk:
+        if not _puede_ver_resultado(request.user, evaluacion):
             raise PermissionDenied("No tenés permiso para acceder a esta sección.")
+        return render(request, self.template_name, self._context(request, evaluacion))
+
+    def post(self, request, pk):
+        evaluacion = _get_evaluacion(request, pk)
+        if not _puede_ver_resultado(request.user, evaluacion):
+            raise PermissionDenied("No tenés permiso para acceder a esta sección.")
+        if not _puede_registrar_reunion(evaluacion, request.user):
+            raise PermissionDenied("No tenés permiso para acceder a esta sección.")
+        if request.POST.get("accion") == "omitir_reunion":
+            try:
+                omitir_reunion_feedback(evaluacion, request.user, request)
+            except EvaluacionesError as exc:
+                messages.error(request, str(exc))
+                return render(request, self.template_name, self._context(request, evaluacion))
+            messages.success(
+                request,
+                "Se continuó sin reunión. El empleado puede firmar con el feedback del sistema.",
+            )
+            return redirect("evaluaciones:resultado", pk=evaluacion.pk)
+        form_reunion = ReunionFeedbackForm(request.POST)
+        if not form_reunion.is_valid():
+            messages.error(request, "Revisá la fecha y las notas de la reunión.")
+            ctx = self._context(request, evaluacion)
+            ctx["form_reunion"] = form_reunion
+            return render(request, self.template_name, ctx)
+        try:
+            registrar_reunion_feedback(
+                evaluacion,
+                form_reunion.cleaned_data["reunion_fecha"],
+                form_reunion.cleaned_data["reunion_notas"],
+                request.user,
+                request,
+            )
+        except EvaluacionesError as exc:
+            messages.error(request, str(exc))
+            ctx = self._context(request, evaluacion)
+            ctx["form_reunion"] = form_reunion
+            return render(request, self.template_name, ctx)
+        messages.success(request, "Reunión de feedback registrada.")
+        return redirect("evaluaciones:resultado", pk=evaluacion.pk)
+
+    def _context(self, request, evaluacion, form_reunion=None):
         items = evaluacion.respuestas.select_related(
             "criterio", "criterio__competencia"
         ).order_by("criterio__orden", "pk")
+        es_evaluado = evaluacion.evaluado_id == request.user.pk
         puede_firmar = (
-            evaluacion.estado == Evaluacion.Estado.PENDIENTE_CONFORMIDAD
+            es_evaluado
+            and evaluacion.estado == Evaluacion.Estado.PENDIENTE_CONFORMIDAD
         )
-        return render(
+        puede_registrar = (
+            _puede_registrar_reunion(evaluacion, request.user)
+            and evaluacion.estado == Evaluacion.Estado.PENDIENTE_COMPARACION
+        )
+        volver_url, volver_etiqueta = _volver_resultado(request.user, evaluacion)
+        if form_reunion is None:
+            form_reunion = ReunionFeedbackForm()
+        return {
+            "evaluacion": evaluacion,
+            "items": items,
+            "puede_firmar": puede_firmar,
+            "puede_registrar_reunion": puede_registrar,
+            "es_evaluado": es_evaluado,
+            "form_obs": ObservacionConformidadForm(),
+            "form_reunion": form_reunion,
+            "volver_url": volver_url,
+            "volver_etiqueta": volver_etiqueta,
+        }
+
+
+class ResultadoPdfView(FlujoPropioMixin, View):
+    def get(self, request, pk):
+        evaluacion = _get_evaluacion(request, pk)
+        if not _puede_ver_resultado(request.user, evaluacion):
+            raise PermissionDenied("No tenés permiso para acceder a esta sección.")
+        contenido = exportar_resultado_pdf(evaluacion, usuario=request.user)
+        registrar_auditoria(
             request,
-            self.template_name,
-            {
-                "evaluacion": evaluacion,
-                "items": items,
-                "puede_firmar": puede_firmar,
-                "form_obs": ObservacionConformidadForm(),
+            Accion.EXPORTAR,
+            instance=evaluacion,
+            payload={
+                "formato": "pdf",
+                "tipo": "resultado_evaluacion",
+                "evaluacion_id": evaluacion.pk,
             },
         )
+        filename = nombre_archivo_pdf(evaluacion)
+        response = HttpResponse(contenido, content_type=CONTENT_TYPE_PDF)
+        response["Content-Disposition"] = f'inline; filename="{filename}"'
+        return response
 
 
 class FirmarView(FlujoPropioMixin, View):
@@ -293,6 +407,9 @@ class SupervisarView(EquipoMixin, View):
                 cerrar,
                 request.user,
                 request,
+                habilitar_reunion=bool(
+                    form_cierre.cleaned_data.get("habilitar_reunion")
+                ),
             )
         except EvaluacionesError as exc:
             messages.error(request, str(exc))
@@ -307,8 +424,11 @@ class SupervisarView(EquipoMixin, View):
                 },
             )
         if cerrar:
-            messages.success(request, "Evaluación de supervisor cerrada.")
-            return redirect("evaluaciones:equipo")
+            messages.success(
+                request,
+                "Evaluación de supervisor cerrada. Ya podés comparar ambas evaluaciones.",
+            )
+            return redirect("evaluaciones:resultado", pk=evaluacion.pk)
         messages.success(request, "Evaluación de supervisor guardada.")
         return redirect("evaluaciones:supervisar", pk=evaluacion.pk)
 

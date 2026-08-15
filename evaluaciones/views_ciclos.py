@@ -9,12 +9,17 @@ from app.mixins import EmpresaRequiredMixin, RolRequiredMixin
 from auditoria.services import registrar_auditoria
 from cuentas.models import Usuario
 from evaluaciones.exceptions import EvaluacionesError
-from evaluaciones.forms import CicloEvaluacionForm, CicloReprogramarForm
+from evaluaciones.forms import (
+    CicloEvaluacionForm,
+    CicloReprogramarForm,
+    ReasignarEvaluadorForm,
+)
 from evaluaciones.models import CicloEvaluacion, Evaluacion
 from evaluaciones.services import (
     activar_ciclo,
     cancelar_ciclo,
     pausar_ciclo,
+    reasignar_evaluador,
     reprogramar_ciclo,
 )
 
@@ -124,41 +129,54 @@ class CicloDetalleView(CicloLecturaMixin, View):
         return render(request, self.template_name, ctx)
 
     def _context(self, request, ciclo):
-        evaluaciones = (
+        evaluaciones = list(
             ciclo.evaluaciones.select_related("evaluado", "evaluador", "puesto")
             .order_by("evaluado__last_name", "evaluado__first_name", "pk")
         )
-        total = evaluaciones.count()
-        auto = evaluaciones.filter(
-            estado__in=[
+        total = len(evaluaciones)
+        auto = sum(
+            1
+            for ev in evaluaciones
+            if ev.estado
+            in (
                 Evaluacion.Estado.AUTO_COMPLETA,
                 Evaluacion.Estado.SUPERVISOR_BORRADOR,
+                Evaluacion.Estado.PENDIENTE_COMPARACION,
                 Evaluacion.Estado.PENDIENTE_CONFORMIDAD,
                 Evaluacion.Estado.CERRADA,
                 Evaluacion.Estado.CERRADA_CON_OBS,
-            ]
-        ).count()
-        supervisor = evaluaciones.filter(
-            estado__in=[
+            )
+        )
+        supervisor = sum(
+            1
+            for ev in evaluaciones
+            if ev.estado
+            in (
+                Evaluacion.Estado.PENDIENTE_COMPARACION,
                 Evaluacion.Estado.PENDIENTE_CONFORMIDAD,
                 Evaluacion.Estado.CERRADA,
                 Evaluacion.Estado.CERRADA_CON_OBS,
-            ]
-        ).count()
-        firmadas = evaluaciones.filter(
-            estado__in=[Evaluacion.Estado.CERRADA, Evaluacion.Estado.CERRADA_CON_OBS]
-        ).count()
-        sin_evaluador = list(evaluaciones.filter(sin_evaluador=True))
+            )
+        )
+        firmadas = sum(
+            1
+            for ev in evaluaciones
+            if ev.estado
+            in (Evaluacion.Estado.CERRADA, Evaluacion.Estado.CERRADA_CON_OBS)
+        )
+        sin_evaluador = [ev for ev in evaluaciones if ev.sin_evaluador]
         form = None
-        if (
-            puede_gestionar_ciclos(request.user)
-            and ciclo.estado == CicloEvaluacion.Estado.BORRADOR
-        ):
+        puede = puede_gestionar_ciclos(request.user)
+        if puede and ciclo.estado == CicloEvaluacion.Estado.BORRADOR:
             form = CicloEvaluacionForm(empresa=request.empresa, instance=ciclo)
+        for ev in evaluaciones:
+            ev.form_reasignar = None
+            if puede and ciclo.estado == CicloEvaluacion.Estado.ACTIVO and ev.sin_evaluador:
+                ev.form_reasignar = ReasignarEvaluadorForm(evaluacion=ev)
         return {
             "ciclo": ciclo,
             "evaluaciones": evaluaciones,
-            "puede_gestionar": puede_gestionar_ciclos(request.user),
+            "puede_gestionar": puede,
             "form": form,
             "progreso": {
                 "total": total,
@@ -280,3 +298,37 @@ class CicloReprogramarView(CicloCRUDMixin, View):
         return render(
             request, self.template_name, {"ciclo": ciclo, "form": form}
         )
+
+
+class ReasignarEvaluadorView(CicloCRUDMixin, View):
+    def post(self, request, pk):
+        evaluacion = get_object_or_404(
+            Evaluacion.objects.for_empresa(request.empresa).select_related(
+                "ciclo", "evaluado", "empresa"
+            ),
+            pk=pk,
+        )
+        form = ReasignarEvaluadorForm(request.POST, evaluacion=evaluacion)
+        if not form.is_valid():
+            messages.error(request, "Seleccioná un evaluador válido.")
+            return redirect("evaluaciones:ciclo_detalle", pk=evaluacion.ciclo_id)
+        try:
+            reasignar_evaluador(
+                evaluacion,
+                form.cleaned_data["evaluador"],
+                request.user,
+                request,
+            )
+        except EvaluacionesError as exc:
+            messages.error(request, str(exc))
+            return redirect("evaluaciones:ciclo_detalle", pk=evaluacion.ciclo_id)
+        messages.success(request, "Evaluador asignado.")
+        return redirect("evaluaciones:ciclo_detalle", pk=evaluacion.ciclo_id)
+
+    def get(self, request, pk):
+        evaluacion = get_object_or_404(
+            Evaluacion.objects.for_empresa(request.empresa),
+            pk=pk,
+        )
+        return redirect("evaluaciones:ciclo_detalle", pk=evaluacion.ciclo_id)
+

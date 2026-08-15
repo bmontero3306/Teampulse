@@ -3,6 +3,7 @@ from django.db.models import Q
 from django.forms import BaseInlineFormSet, inlineformset_factory, modelformset_factory
 
 from app.forms_widgets import CHECKBOX_CSS, INPUT_CSS, SELECT_CSS
+from cuentas.models import Usuario
 from evaluaciones.models import (
     CicloEvaluacion,
     PlantillaCriterio,
@@ -365,6 +366,15 @@ class SupervisorCierreForm(forms.Form):
         required=False,
         widget=forms.Textarea(attrs={"class": TEXTAREA_CSS, "rows": 4}),
     )
+    habilitar_reunion = forms.BooleanField(
+        label="Habilitar reunión de feedback",
+        required=False,
+        widget=forms.CheckboxInput(attrs={"class": CHECKBOX_CSS}),
+        help_text=(
+            "Opcional. Si no la marcás, el empleado ve la comparación y firma "
+            "con el feedback y las observaciones del sistema."
+        ),
+    )
 
 
 class ObservacionConformidadForm(forms.Form):
@@ -373,6 +383,41 @@ class ObservacionConformidadForm(forms.Form):
         required=False,
         widget=forms.Textarea(attrs={"class": TEXTAREA_CSS, "rows": 4}),
     )
+
+
+class ReunionFeedbackForm(forms.Form):
+    reunion_fecha = forms.DateTimeField(
+        label="Fecha de la reunión",
+        widget=forms.DateTimeInput(
+            attrs={"class": INPUT_CSS, "type": "datetime-local"},
+            format="%Y-%m-%dT%H:%M",
+        ),
+        input_formats=["%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"],
+    )
+    reunion_notas = forms.CharField(
+        label="Notas de la reunión",
+        widget=forms.Textarea(attrs={"class": TEXTAREA_CSS, "rows": 4}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["reunion_fecha"].localize = False
+
+
+class ReasignarEvaluadorForm(forms.Form):
+    evaluador = forms.ModelChoiceField(
+        queryset=Usuario.objects.none(),
+        empty_label="— Elegir evaluador —",
+        widget=forms.Select(attrs={"class": SELECT_CSS}),
+        label="Evaluador",
+    )
+
+    def __init__(self, *args, evaluacion=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        from evaluaciones.services import candidatos_evaluador
+
+        if evaluacion is not None:
+            self.fields["evaluador"].queryset = candidatos_evaluador(evaluacion)
 
 
 def autoevaluacion_formset(evaluacion, **kwargs):

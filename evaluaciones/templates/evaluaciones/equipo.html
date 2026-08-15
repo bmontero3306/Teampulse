@@ -29,8 +29,10 @@
                 <td class="px-4 py-3 text-right whitespace-nowrap">
                     {% if ev.estado == "pendiente_auto" or ev.estado == "auto_borrador" %}
                     <span class="text-slate-400">Espera autoevaluación</span>
-                    {% else %}
+                    {% elif ev.estado == "auto_completa" or ev.estado == "supervisor_borrador" %}
                     <a href="{% url 'evaluaciones:supervisar' ev.pk %}" class="font-medium text-sky-700 hover:text-sky-900">Evaluar</a>
+                    {% else %}
+                    <a href="{% url 'evaluaciones:resultado' ev.pk %}" class="font-medium text-sky-700 hover:text-sky-900">Ver comparación</a>
                     {% endif %}
                 </td>
             </tr>

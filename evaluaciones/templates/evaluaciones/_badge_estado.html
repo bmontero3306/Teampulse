@@ -19,6 +19,8 @@
     <span class="inline-flex items-center rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-800 ring-1 ring-inset ring-red-200">Cerrada con observación</span>
     {% elif estado == "pendiente_auto" %}
     <span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-200">Pendiente de autoevaluación</span>
+    {% elif estado == "pendiente_comparacion" %}
+    <span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-200">Pendiente de comparación</span>
     {% elif estado == "pendiente_conformidad" %}
     <span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-200">Pendiente de conformidad</span>
     {% elif estado == "pausado" or estado == "auto_borrador" or estado == "auto_completa" or estado == "supervisor_borrador" %}

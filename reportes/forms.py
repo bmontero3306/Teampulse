@@ -11,6 +11,7 @@ from reportes.services import CONFORMIDAD_NO_FIRMADA
 
 CONFORMIDAD_CHOICES = [
     ("", "Todos"),
+    (Evaluacion.Estado.PENDIENTE_COMPARACION, "Pendiente de comparación"),
     (Evaluacion.Estado.PENDIENTE_CONFORMIDAD, "Pendiente de conformidad"),
     (Evaluacion.Estado.CERRADA, "Firmada — conforme"),
     (Evaluacion.Estado.CERRADA_CON_OBS, "Firmada — con observación"),

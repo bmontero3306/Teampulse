@@ -7,7 +7,7 @@
 <h1 class="mt-2 text-2xl font-semibold tracking-tight text-slate-900">
     Evaluar a {{ evaluacion.evaluado.get_full_name|default:evaluacion.evaluado.email }}
 </h1>
-<p class="mt-1 text-sm text-slate-600">Ciclo «{{ evaluacion.ciclo.nombre }}» · vista comparativa por criterio.</p>
+<p class="mt-1 text-sm text-slate-600">Ciclo «{{ evaluacion.ciclo.nombre }}» · evaluación independiente, sin ver la autoevaluación.</p>
 <div class="mt-2">
     {% include "evaluaciones/_badge_estado.html" with estado=evaluacion.estado contexto="evaluacion" etiqueta=evaluacion.get_estado_display %}
 </div>
@@ -23,14 +23,12 @@
     {{ formset.management_form }}
 
     <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-        <table class="min-w-[720px] w-full text-left text-sm">
+        <table class="min-w-[520px] w-full text-left text-sm">
             <thead class="border-b border-slate-200 bg-slate-50 text-slate-600">
                 <tr>
                     <th class="px-4 py-3 font-medium">Criterio</th>
-                    <th class="px-4 py-3 font-medium">Empleado</th>
-                    <th class="px-4 py-3 font-medium">Comentario empleado</th>
-                    <th class="px-4 py-3 font-medium">Supervisor</th>
-                    <th class="px-4 py-3 font-medium">Comentario supervisor</th>
+                    <th class="px-4 py-3 font-medium">Puntaje</th>
+                    <th class="px-4 py-3 font-medium">Comentario</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 align-top">
@@ -44,8 +42,6 @@
                             {% if form.instance.criterio.comentario_supervisor_obligatorio %}· com. obl.{% endif %}
                         </p>
                     </td>
-                    <td class="px-4 py-3 text-slate-800">{{ form.instance.puntaje_empleado|default:"—" }}</td>
-                    <td class="px-4 py-3 text-slate-600 whitespace-pre-line">{{ form.instance.comentario_empleado|default:"—" }}</td>
                     <td class="px-4 py-3 w-28">{{ form.puntaje_supervisor }}{{ form.puntaje_supervisor.errors }}</td>
                     <td class="px-4 py-3 min-w-48">{{ form.comentario_supervisor }}{{ form.comentario_supervisor.errors }}</td>
                 </tr>
@@ -62,13 +58,24 @@
         {{ form_cierre.feedback_supervisor.errors }}
     </section>
 
+    <section class="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
+        <label class="flex items-start gap-3 text-sm text-slate-700">
+            {{ form_cierre.habilitar_reunion }}
+            <span>
+                <span class="font-medium">Habilitar reunión de feedback</span>
+                <span class="mt-1 block text-slate-500">{{ form_cierre.habilitar_reunion.help_text }}</span>
+            </span>
+        </label>
+        {{ form_cierre.habilitar_reunion.errors }}
+    </section>
+
     {% if puede_editar %}
     <div class="flex flex-col gap-3 sm:flex-row">
         <button type="submit" name="accion" value="borrador" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
             Guardar borrador
         </button>
         <button type="submit" name="accion" value="cerrar"
-                onclick="return confirm('¿Cerrar la evaluación de supervisor? El empleado podrá firmar la conformidad.');"
+                onclick="return confirm('¿Cerrar la evaluación de supervisor? Se revelarán ambas evaluaciones. Si no habilitás reunión, el empleado firma con el feedback del sistema.');"
                 class="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700">
             Cerrar evaluación
         </button>
