@@ -33,13 +33,15 @@ class PlantillaCriterioAdmin(admin.ModelAdmin):
     list_display = (
         "plantilla",
         "competencia",
+        "categoria",
+        "tipo_item",
         "orden",
         "escala_min",
         "escala_max",
         "ponderacion",
     )
-    list_filter = ("plantilla__empresa", "competencia__tipo")
-    search_fields = ("plantilla__nombre", "competencia__nombre")
+    list_filter = ("plantilla__empresa", "tipo_item", "competencia__tipo")
+    search_fields = ("plantilla__nombre", "competencia__nombre", "categoria")
 
 
 @admin.register(PlantillaPuesto)

@@ -55,19 +55,6 @@ def _logout(client):
     return client.post(reverse("cuentas:logout"))
 
 
-def _formset_puesto(**extra):
-    data = {
-        "competencias-TOTAL_FORMS": "1",
-        "competencias-INITIAL_FORMS": "0",
-        "competencias-MIN_NUM_FORMS": "0",
-        "competencias-MAX_NUM_FORMS": "1000",
-        "competencias-0-competencia": "",
-        "competencias-0-ponderacion": "",
-    }
-    data.update(extra)
-    return data
-
-
 class RecorridoFlujoAceptacionTests(CicloBaseTestCase):
     """UAT §13 puntos 1–3, 5, 8 (activar/firma/export) y 9."""
 
@@ -233,7 +220,6 @@ class AdminRrhhAceptacionTests(CicloBaseTestCase):
                 "area": str(self.area.pk),
                 "puesto_superior": str(self.puesto_jefe.pk),
                 "activo": "on",
-                **_formset_puesto(),
             },
         )
         self.assertEqual(crear_puesto.status_code, 302)
@@ -248,7 +234,6 @@ class AdminRrhhAceptacionTests(CicloBaseTestCase):
                 "area": "",
                 "puesto_superior": str(self.puesto.pk),
                 "activo": "on",
-                **_formset_puesto(),
             },
         )
         self.assertEqual(circular.status_code, 200)
@@ -270,6 +255,8 @@ class AdminRrhhAceptacionTests(CicloBaseTestCase):
                 "criterios-MIN_NUM_FORMS": "0",
                 "criterios-MAX_NUM_FORMS": "1000",
                 "criterios-0-competencia": str(competencia.pk),
+                "criterios-0-categoria": "",
+                "criterios-0-tipo_item": "escala",
                 "criterios-0-orden": "1",
                 "criterios-0-escala_min": "1",
                 "criterios-0-escala_max": "5",

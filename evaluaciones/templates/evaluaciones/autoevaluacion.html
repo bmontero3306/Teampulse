@@ -22,32 +22,7 @@
 <form method="post" class="mt-6 space-y-4">
     {% csrf_token %}
     {{ formset.management_form }}
-    {% for form in formset %}
-    <section class="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
-        {{ form.id }}
-        <h2 class="text-base font-semibold text-slate-900">{{ form.instance.criterio.competencia.nombre }}</h2>
-        <p class="mt-1 text-sm text-slate-500">
-            Escala {{ form.instance.criterio.escala_min }} a {{ form.instance.criterio.escala_max }}
-            {% if form.instance.criterio.comentario_empleado_obligatorio %}
-            · comentario obligatorio al enviar
-            {% endif %}
-        </p>
-        <div class="mt-4 grid gap-4">
-            <div>
-                <label class="mb-1 block text-sm font-medium text-slate-700" for="{{ form.puntaje_empleado.id_for_label }}">Puntaje</label>
-                {{ form.puntaje_empleado }}
-                {{ form.puntaje_empleado.errors }}
-            </div>
-            <div>
-                <label class="mb-1 block text-sm font-medium text-slate-700" for="{{ form.comentario_empleado.id_for_label }}">Comentario</label>
-                {{ form.comentario_empleado }}
-                {{ form.comentario_empleado.errors }}
-            </div>
-        </div>
-    </section>
-    {% empty %}
-    <p class="text-sm text-slate-500">Esta plantilla no tiene criterios.</p>
-    {% endfor %}
+    {% include "evaluaciones/_formulario_items.html" with grupos=grupos rol="empleado" %}
 
     {% if not solo_lectura %}
     <div class="flex flex-col gap-3 sm:flex-row">

@@ -27,6 +27,7 @@ from evaluaciones.pdf import (
 from evaluaciones.services import (
     _es_rrhh,
     _puede_registrar_reunion,
+    agrupar_items_por_categoria,
     firmar_conformidad,
     guardar_autoevaluacion,
     guardar_eval_supervisor,
@@ -66,6 +67,13 @@ def _get_evaluacion(request, pk):
             "plantilla",
         ),
         pk=pk,
+    )
+
+
+def _grupos_formset(formset):
+    return agrupar_items_por_categoria(
+        formset.forms,
+        get_criterio=lambda form: form.instance.criterio,
     )
 
 
@@ -145,6 +153,7 @@ class AutoevaluacionView(FlujoPropioMixin, View):
             {
                 "evaluacion": evaluacion,
                 "formset": formset,
+                "grupos": _grupos_formset(formset),
                 "solo_lectura": solo_lectura,
             },
         )
@@ -162,6 +171,7 @@ class AutoevaluacionView(FlujoPropioMixin, View):
                 {
                     "evaluacion": evaluacion,
                     "formset": formset,
+                    "grupos": _grupos_formset(formset),
                     "solo_lectura": False,
                 },
             )
@@ -183,6 +193,7 @@ class AutoevaluacionView(FlujoPropioMixin, View):
                 {
                     "evaluacion": evaluacion,
                     "formset": formset,
+                    "grupos": _grupos_formset(formset),
                     "solo_lectura": False,
                 },
             )
@@ -264,6 +275,7 @@ class ResultadoView(FlujoPropioMixin, View):
         return {
             "evaluacion": evaluacion,
             "items": items,
+            "grupos": agrupar_items_por_categoria(items),
             "puede_firmar": puede_firmar,
             "puede_registrar_reunion": puede_registrar,
             "es_evaluado": es_evaluado,
@@ -374,6 +386,7 @@ class SupervisarView(EquipoMixin, View):
             {
                 "evaluacion": evaluacion,
                 "formset": formset,
+                "grupos": _grupos_formset(formset),
                 "form_cierre": form_cierre,
                 "puede_editar": puede_editar,
             },
@@ -393,6 +406,7 @@ class SupervisarView(EquipoMixin, View):
                 {
                     "evaluacion": evaluacion,
                     "formset": formset,
+                    "grupos": _grupos_formset(formset),
                     "form_cierre": form_cierre,
                     "puede_editar": True,
                 },
@@ -419,6 +433,7 @@ class SupervisarView(EquipoMixin, View):
                 {
                     "evaluacion": evaluacion,
                     "formset": formset,
+                    "grupos": _grupos_formset(formset),
                     "form_cierre": form_cierre,
                     "puede_editar": True,
                 },

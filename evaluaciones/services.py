@@ -46,6 +46,8 @@ def duplicar_plantilla(plantilla):
         PlantillaCriterio.objects.create(
             plantilla=nueva,
             competencia=criterio.competencia,
+            categoria=criterio.categoria,
+            tipo_item=criterio.tipo_item,
             orden=criterio.orden,
             escala_min=criterio.escala_min,
             escala_max=criterio.escala_max,
@@ -182,9 +184,49 @@ def _asegurar_ciclo_editable(ciclo):
         raise EvaluacionesError("El ciclo no está activo.")
 
 
+def agrupar_items_por_categoria(objetos, get_criterio=None):
+    """Agrupa objetos por `criterio.categoria` respetando el orden de aparición.
+
+    `objetos` puede ser RespuestaItem, formularios u otros. Si no se pasa
+    `get_criterio`, se asume que cada objeto es un RespuestaItem o un
+    PlantillaCriterio.
+    """
+    def _criterio_de(obj):
+        if get_criterio is not None:
+            return get_criterio(obj)
+        if hasattr(obj, "criterio"):
+            return obj.criterio
+        return obj
+
+    grupos = []
+    indice = {}
+    hay_con = False
+    hay_sin = False
+    for obj in objetos:
+        criterio = _criterio_de(obj)
+        nombre = (getattr(criterio, "categoria", None) or "").strip()
+        if nombre:
+            hay_con = True
+        else:
+            hay_sin = True
+        if nombre not in indice:
+            indice[nombre] = len(grupos)
+            grupos.append({"nombre": nombre or None, "items": []})
+        grupos[indice[nombre]]["items"].append(obj)
+    if hay_con and hay_sin:
+        for grupo in grupos:
+            if not grupo["nombre"]:
+                grupo["nombre"] = "Sin categoría"
+    return grupos
+
+
 def _puntajes_en_rango(criterio, puntaje, etiqueta):
     if puntaje is None:
         return
+    if getattr(criterio, "es_texto", False):
+        raise EvaluacionesError(
+            f"«{criterio.competencia}» es un campo de texto y no admite puntaje."
+        )
     if puntaje < criterio.escala_min or puntaje > criterio.escala_max:
         raise EvaluacionesError(
             f"El {etiqueta} de «{criterio.competencia}» debe estar entre "
@@ -368,13 +410,16 @@ def guardar_autoevaluacion(evaluacion, respuestas, enviar, usuario, request=None
             raise EvaluacionesError("Hay ítems que no pertenecen a esta evaluación.")
         puntaje = datos.get("puntaje_empleado")
         comentario = (datos.get("comentario_empleado") or "").strip()
-        _puntajes_en_rango(item.criterio, puntaje, "puntaje del empleado")
-        item.puntaje_empleado = puntaje
+        if item.criterio.es_texto:
+            item.puntaje_empleado = None
+        else:
+            _puntajes_en_rango(item.criterio, puntaje, "puntaje del empleado")
+            item.puntaje_empleado = puntaje
         item.comentario_empleado = comentario
 
     if enviar:
         for item in items.values():
-            if item.puntaje_empleado is None:
+            if item.criterio.es_escala and item.puntaje_empleado is None:
                 raise EvaluacionesError(
                     f"Falta el puntaje de «{item.criterio.competencia}»."
                 )
@@ -383,7 +428,7 @@ def guardar_autoevaluacion(evaluacion, respuestas, enviar, usuario, request=None
                 and not (item.comentario_empleado or "").strip()
             ):
                 raise EvaluacionesError(
-                    f"El comentario del empleado es obligatorio en «{item.criterio.competencia}»."
+                    f"La devolución del empleado es obligatoria en «{item.criterio.competencia}»."
                 )
         evaluacion.estado = Evaluacion.Estado.AUTO_COMPLETA
         evaluacion.enviada_auto_en = timezone.now()
@@ -456,8 +501,11 @@ def guardar_eval_supervisor(
             raise EvaluacionesError("Hay ítems que no pertenecen a esta evaluación.")
         puntaje = datos.get("puntaje_supervisor")
         comentario = (datos.get("comentario_supervisor") or "").strip()
-        _puntajes_en_rango(item.criterio, puntaje, "puntaje del supervisor")
-        item.puntaje_supervisor = puntaje
+        if item.criterio.es_texto:
+            item.puntaje_supervisor = None
+        else:
+            _puntajes_en_rango(item.criterio, puntaje, "puntaje del supervisor")
+            item.puntaje_supervisor = puntaje
         item.comentario_supervisor = comentario
 
     feedback = (feedback_supervisor or "").strip()
@@ -469,7 +517,7 @@ def guardar_eval_supervisor(
                 "El feedback del supervisor es obligatorio para cerrar."
             )
         for item in items.values():
-            if item.puntaje_supervisor is None:
+            if item.criterio.es_escala and item.puntaje_supervisor is None:
                 raise EvaluacionesError(
                     f"Falta el puntaje de supervisor en «{item.criterio.competencia}»."
                 )
@@ -478,7 +526,7 @@ def guardar_eval_supervisor(
                 and not (item.comentario_supervisor or "").strip()
             ):
                 raise EvaluacionesError(
-                    f"El comentario del supervisor es obligatorio en «{item.criterio.competencia}»."
+                    f"La devolución del supervisor es obligatoria en «{item.criterio.competencia}»."
                 )
         if habilitar_reunion:
             evaluacion.estado = Evaluacion.Estado.PENDIENTE_COMPARACION

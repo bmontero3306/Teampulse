@@ -1,8 +1,7 @@
 from django import forms
-from django.forms import BaseInlineFormSet, inlineformset_factory
 
 from app.forms_widgets import CHECKBOX_CSS, INPUT_CSS, SELECT_CSS
-from organizacion.models import Area, Competencia, Puesto, PuestoCompetencia
+from organizacion.models import Area, Competencia, Puesto
 from organizacion.services import (
     JerarquiaCircularError,
     validar_jerarquia_areas,
@@ -120,77 +119,3 @@ class CompetenciaForm(forms.ModelForm):
         if commit:
             competencia.save()
         return competencia
-
-
-class PuestoCompetenciaForm(forms.ModelForm):
-    class Meta:
-        model = PuestoCompetencia
-        fields = ["competencia", "ponderacion"]
-        widgets = {
-            "competencia": forms.Select(attrs={"class": SELECT_CSS}),
-            "ponderacion": forms.NumberInput(
-                attrs={
-                    "class": INPUT_CSS,
-                    "min": "0",
-                    "max": "100",
-                    "step": "0.01",
-                }
-            ),
-        }
-
-    def __init__(self, *args, empresa=None, **kwargs):
-        self.empresa = empresa
-        super().__init__(*args, **kwargs)
-        qs = Competencia.objects.for_empresa(empresa)
-        self.fields["competencia"].queryset = qs
-        self.fields["competencia"].empty_label = "— Elegir competencia —"
-
-    def clean_competencia(self):
-        competencia = self.cleaned_data.get("competencia")
-        if (
-            competencia
-            and self.empresa is not None
-            and competencia.empresa_id != self.empresa.pk
-        ):
-            raise forms.ValidationError(
-                "La competencia no pertenece a esta empresa."
-            )
-        return competencia
-
-
-class BasePuestoCompetenciaFormSet(BaseInlineFormSet):
-    def add_fields(self, form, index):
-        super().add_fields(form, index)
-        if "DELETE" in form.fields:
-            form.fields["DELETE"].label = "Quitar"
-            form.fields["DELETE"].widget.attrs["class"] = CHECKBOX_CSS
-
-    def clean(self):
-        super().clean()
-        vistos = []
-        for form in self.forms:
-            data = getattr(form, "cleaned_data", None)
-            if not data or data.get("DELETE"):
-                continue
-            competencia = data.get("competencia")
-            if not competencia:
-                continue
-            if competencia.pk in vistos:
-                raise forms.ValidationError(
-                    "No se puede asignar la misma competencia más de una vez."
-                )
-            vistos.append(competencia.pk)
-
-
-def puesto_competencia_formset(empresa, **kwargs):
-    FormSet = inlineformset_factory(
-        Puesto,
-        PuestoCompetencia,
-        form=PuestoCompetenciaForm,
-        formset=BasePuestoCompetenciaFormSet,
-        extra=1,
-        can_delete=True,
-        min_num=0,
-        validate_min=False,
-    )
-    return FormSet(form_kwargs={"empresa": empresa}, prefix="competencias", **kwargs)

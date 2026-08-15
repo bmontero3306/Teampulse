@@ -11,6 +11,7 @@ from django.utils.formats import date_format
 
 from empresas.validators import formatear_cuit
 from evaluaciones.models import Evaluacion
+from evaluaciones.services import agrupar_items_por_categoria
 
 CONTENT_TYPE_PDF = "application/pdf"
 
@@ -288,7 +289,7 @@ def exportar_resultado_pdf(evaluacion: Evaluacion, usuario=None, generado_en=Non
     comentarios = _tabla_comentarios(items, revelada, estilo_th, estilo_td, P)
     if comentarios is not None:
         story.append(Spacer(1, 4 * mm))
-        story.append(_banda("Comentarios por criterio", estilo_seccion))
+        story.append(_banda("Devoluciones por criterio", estilo_seccion))
         story.append(Spacer(1, 1.5 * mm))
         story.append(comentarios)
 
@@ -589,9 +590,16 @@ def _tabla_condiciones(evaluacion, estilo_label, estilo_valor, P):
 
 def _tabla_criterios(items, revelada, estilo_th, estilo_th_center, estilo_td, estilo_td_center, P):
     from reportlab.lib import colors
+    from reportlab.lib.styles import ParagraphStyle
     from reportlab.lib.units import mm
     from reportlab.platypus import Table, TableStyle
 
+    estilo_cat = ParagraphStyle(
+        "EvCatCriterio",
+        parent=estilo_th,
+        textColor=colors.white,
+        fontName="Helvetica-Bold",
+    )
     headers = [
         P("Criterio", estilo_th),
         P("Escala", estilo_th_center),
@@ -601,29 +609,44 @@ def _tabla_criterios(items, revelada, estilo_th, estilo_th_center, estilo_td, es
         P("Pond.", estilo_th_center),
     ]
     data = [headers]
-    for item in items:
-        criterio = item.criterio
-        competencia = getattr(criterio, "competencia", None)
-        nombre = competencia.nombre if competencia else "—"
-        escala = f"{criterio.escala_min}–{criterio.escala_max}"
-        pond = _fmt_decimal(criterio.ponderacion)
-        emp = _fmt_entero(item.puntaje_empleado)
-        if revelada:
-            sup = _fmt_entero(item.puntaje_supervisor)
-            brecha = item.brecha_display
-        else:
-            sup = "—"
-            brecha = "—"
-        data.append(
-            [
-                P(nombre, estilo_td),
-                P(escala, estilo_td_center),
-                P(emp, estilo_td_center),
-                P(sup, estilo_td_center),
-                P(brecha, estilo_td_center),
-                P(pond, estilo_td_center),
-            ]
-        )
+    filas_categoria = []
+    grupos = agrupar_items_por_categoria(items)
+    for grupo in grupos:
+        if grupo["nombre"]:
+            filas_categoria.append(len(data))
+            data.append(
+                [P(grupo["nombre"], estilo_cat)] + [P("", estilo_td)] * 5
+            )
+        for item in grupo["items"]:
+            criterio = item.criterio
+            competencia = getattr(criterio, "competencia", None)
+            nombre = competencia.nombre if competencia else "—"
+            if getattr(criterio, "es_texto", False):
+                escala = "Texto"
+                pond = "—"
+                emp = "—"
+                sup = "—"
+                brecha = "—"
+            else:
+                escala = f"{criterio.escala_min}–{criterio.escala_max}"
+                pond = _fmt_decimal(criterio.ponderacion)
+                emp = _fmt_entero(item.puntaje_empleado)
+                if revelada:
+                    sup = _fmt_entero(item.puntaje_supervisor)
+                    brecha = item.brecha_display
+                else:
+                    sup = "—"
+                    brecha = "—"
+            data.append(
+                [
+                    P(nombre, estilo_td),
+                    P(escala, estilo_td_center),
+                    P(emp, estilo_td_center),
+                    P(sup, estilo_td_center),
+                    P(brecha, estilo_td_center),
+                    P(pond, estilo_td_center),
+                ]
+            )
     if len(data) == 1:
         data.append(
             [P("Sin ítems de evaluación.", estilo_td)] + [P("", estilo_td)] * 5
@@ -631,23 +654,28 @@ def _tabla_criterios(items, revelada, estilo_th, estilo_th_center, estilo_td, es
 
     anchos = [62 * mm, 22 * mm, 24 * mm, 26 * mm, 24 * mm, 24 * mm]
     tabla = Table(data, colWidths=anchos, repeatRows=1)
-    tabla.setStyle(
-        TableStyle(
+    estilos = [
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(_COLOR_TEAL)),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor(_COLOR_ROW)]),
+        ("BOX", (0, 0), (-1, -1), 0.4, colors.HexColor(_COLOR_LINE)),
+        ("INNERGRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#e2e8f0")),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 2.5),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 2.5),
+        ("TOPPADDING", (0, 0), (-1, -1), 3.5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3.5),
+        ("ALIGN", (1, 0), (-1, -1), "CENTER"),
+    ]
+    for fila in filas_categoria:
+        estilos.extend(
             [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(_COLOR_TEAL)),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor(_COLOR_ROW)]),
-                ("BOX", (0, 0), (-1, -1), 0.4, colors.HexColor(_COLOR_LINE)),
-                ("INNERGRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#e2e8f0")),
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("LEFTPADDING", (0, 0), (-1, -1), 2.5),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 2.5),
-                ("TOPPADDING", (0, 0), (-1, -1), 3.5),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 3.5),
-                ("ALIGN", (1, 0), (-1, -1), "CENTER"),
+                ("SPAN", (0, fila), (-1, fila)),
+                ("BACKGROUND", (0, fila), (-1, fila), colors.HexColor(_COLOR_NAVY)),
+                ("ALIGN", (0, fila), (-1, fila), "LEFT"),
             ]
         )
-    )
+    tabla.setStyle(TableStyle(estilos))
     return tabla
 
 
@@ -669,36 +697,47 @@ def _tabla_comentarios(items, revelada, estilo_th, estilo_td, P):
     data = [
         [
             P("Criterio", estilo_th),
-            P("Comentario del empleado", estilo_th),
-            P("Comentario del supervisor", estilo_th),
+            P("Devolución del empleado", estilo_th),
+            P("Devolución del supervisor", estilo_th),
         ]
     ]
-    for item in filas_utiles:
-        competencia = getattr(item.criterio, "competencia", None)
-        nombre = competencia.nombre if competencia else "—"
-        emp = (item.comentario_empleado or "").strip() or "—"
-        if revelada:
-            sup = (item.comentario_supervisor or "").strip() or "—"
-        else:
-            sup = "—"
-        data.append([P(nombre, estilo_td), P(emp, estilo_td), P(sup, estilo_td)])
+    filas_categoria = []
+    grupos = agrupar_items_por_categoria(filas_utiles)
+    for grupo in grupos:
+        if grupo["nombre"]:
+            filas_categoria.append(len(data))
+            data.append([P(grupo["nombre"], estilo_th)] + [P("", estilo_td)] * 2)
+        for item in grupo["items"]:
+            competencia = getattr(item.criterio, "competencia", None)
+            nombre = competencia.nombre if competencia else "—"
+            emp = (item.comentario_empleado or "").strip() or "—"
+            if revelada:
+                sup = (item.comentario_supervisor or "").strip() or "—"
+            else:
+                sup = "—"
+            data.append([P(nombre, estilo_td), P(emp, estilo_td), P(sup, estilo_td)])
 
     tabla = Table(data, colWidths=[42 * mm, 70 * mm, 70 * mm], repeatRows=1)
-    tabla.setStyle(
-        TableStyle(
+    estilos = [
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(_COLOR_TEAL)),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor(_COLOR_ROW)]),
+        ("BOX", (0, 0), (-1, -1), 0.4, colors.HexColor(_COLOR_LINE)),
+        ("INNERGRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#e2e8f0")),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 2.5),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 2.5),
+        ("TOPPADDING", (0, 0), (-1, -1), 3.5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3.5),
+    ]
+    for fila in filas_categoria:
+        estilos.extend(
             [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(_COLOR_TEAL)),
-                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor(_COLOR_ROW)]),
-                ("BOX", (0, 0), (-1, -1), 0.4, colors.HexColor(_COLOR_LINE)),
-                ("INNERGRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#e2e8f0")),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("LEFTPADDING", (0, 0), (-1, -1), 2.5),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 2.5),
-                ("TOPPADDING", (0, 0), (-1, -1), 3.5),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 3.5),
+                ("SPAN", (0, fila), (-1, fila)),
+                ("BACKGROUND", (0, fila), (-1, fila), colors.HexColor(_COLOR_NAVY)),
+                ("TEXTCOLOR", (0, fila), (-1, fila), colors.white),
             ]
         )
-    )
+    tabla.setStyle(TableStyle(estilos))
     return tabla
 
 

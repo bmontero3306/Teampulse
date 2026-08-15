@@ -18,6 +18,11 @@ urlpatterns = [
     path("areas/<int:pk>/editar/", views.AreaFormView.as_view(), name="area_form"),
     path("competencias/", views.CompetenciaListView.as_view(), name="competencias"),
     path(
+        "competencias/rapida/",
+        views.CompetenciaRapidaView.as_view(),
+        name="competencia_rapida",
+    ),
+    path(
         "competencias/nueva/",
         views.CompetenciaFormView.as_view(),
         name="competencia_form",

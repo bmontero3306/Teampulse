@@ -1,0 +1,103 @@
+<tbody class="fila-criterio border-b border-slate-100{% if f.errors %} is-abierto{% endif %}">
+    <tr class="fila-resumen align-middle">
+        <td class="py-3 pr-3 font-medium text-slate-900">
+            {{ f.id }}
+            <span class="js-resumen-competencia">—</span>
+            {% if f.non_field_errors %}
+            <p class="mt-1 text-xs text-red-700">{{ f.non_field_errors.0 }}</p>
+            {% endif %}
+        </td>
+        <td class="py-3 pr-3 text-slate-600"><span class="js-resumen-categoria">—</span></td>
+        <td class="py-3 pr-3 text-slate-600"><span class="js-resumen-tipo">—</span></td>
+        <td class="py-3 pr-3 text-slate-600"><span class="js-resumen-escala">—</span></td>
+        <td class="py-3 pr-3 text-slate-600"><span class="js-resumen-ponderacion">—</span></td>
+        <td class="py-3 pr-3 text-slate-600"><span class="js-resumen-devolucion">—</span></td>
+        <td class="py-3 text-right whitespace-nowrap">
+            <div class="flex flex-col items-end gap-1">
+                <span class="js-aviso-quitar hidden rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">
+                    Se quitará al guardar
+                </span>
+                <div>
+                    <button type="button"
+                            class="btn-editar-criterio rounded-lg px-2 py-1 text-sm font-medium text-sky-700 hover:bg-sky-50">
+                        {% if f.errors %}Cerrar{% else %}Editar{% endif %}
+                    </button>
+                    {% if f.DELETE %}
+                    <button type="button"
+                            class="btn-quitar-criterio rounded-lg px-2 py-1 text-sm font-medium text-slate-600 hover:bg-slate-100"
+                            aria-label="Quitar de la plantilla">
+                        Quitar
+                    </button>
+                    <button type="button"
+                            class="btn-deshacer-quitar hidden rounded-lg px-2 py-1 text-sm font-medium text-sky-700 hover:bg-sky-50">
+                        Deshacer
+                    </button>
+                    <span class="hidden">{{ f.DELETE }}</span>
+                    {% endif %}
+                </div>
+            </div>
+        </td>
+    </tr>
+    <tr class="fila-detalle bg-slate-50{% if not f.errors %} hidden{% endif %}">
+        <td colspan="7" class="px-3 pb-4 pt-1">
+            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div class="sm:col-span-2 lg:col-span-2">
+                    <label class="mb-1 block text-xs font-medium text-slate-700" for="{{ f.competencia.id_for_label }}">Competencia</label>
+                    {{ f.competencia }}
+                    {{ f.competencia.errors }}
+                </div>
+                <div>
+                    <label class="mb-1 block text-xs font-medium text-slate-700" for="{{ f.categoria.id_for_label }}">Categoría</label>
+                    {{ f.categoria }}
+                    {{ f.categoria.errors }}
+                </div>
+                <div>
+                    <label class="mb-1 block text-xs font-medium text-slate-700" for="{{ f.tipo_item.id_for_label }}">Tipo de respuesta</label>
+                    {{ f.tipo_item }}
+                    {{ f.tipo_item.errors }}
+                </div>
+                <div>
+                    <label class="mb-1 block text-xs font-medium text-slate-700" for="{{ f.orden.id_for_label }}">Orden</label>
+                    {{ f.orden }}
+                    {{ f.orden.errors }}
+                </div>
+                <div class="campo-escala">
+                    <label class="mb-1 block text-xs font-medium text-slate-700" for="{{ f.escala_min.id_for_label }}">Escala mínima</label>
+                    {{ f.escala_min }}
+                    {{ f.escala_min.errors }}
+                </div>
+                <div class="campo-escala">
+                    <label class="mb-1 block text-xs font-medium text-slate-700" for="{{ f.escala_max.id_for_label }}">Escala máxima</label>
+                    {{ f.escala_max }}
+                    {{ f.escala_max.errors }}
+                </div>
+                <div class="campo-escala">
+                    <label class="mb-1 block text-xs font-medium text-slate-700" for="{{ f.ponderacion.id_for_label }}">Ponderación (%)</label>
+                    {{ f.ponderacion }}
+                    {{ f.ponderacion.errors }}
+                </div>
+            </div>
+            <p class="aviso-texto mt-3 hidden text-xs text-slate-500">
+                Solo texto: no lleva puntaje ni ponderación, y no suma al promedio.
+            </p>
+            <div class="mt-3 flex flex-col gap-2 sm:flex-row sm:gap-6">
+                <label class="flex items-start gap-2 text-sm text-slate-700">
+                    {{ f.comentario_empleado_obligatorio }}
+                    <span>
+                        <span class="font-medium">Devolución del empleado obligatoria</span>
+                        <span class="block text-xs text-slate-500">El evaluado debe dejar un comentario.</span>
+                    </span>
+                </label>
+                {{ f.comentario_empleado_obligatorio.errors }}
+                <label class="flex items-start gap-2 text-sm text-slate-700">
+                    {{ f.comentario_supervisor_obligatorio }}
+                    <span>
+                        <span class="font-medium">Devolución del supervisor obligatoria</span>
+                        <span class="block text-xs text-slate-500">El evaluador debe dejar feedback.</span>
+                    </span>
+                </label>
+                {{ f.comentario_supervisor_obligatorio.errors }}
+            </div>
+        </td>
+    </tr>
+</tbody>

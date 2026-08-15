@@ -41,43 +41,63 @@
 </p>
 {% endif %}
 
-<div class="mt-6 overflow-x-auto rounded-xl border border-slate-200 bg-white">
-    <table class="min-w-[720px] w-full text-left text-sm">
-        <thead class="border-b border-slate-200 bg-slate-50 text-slate-600">
-            <tr>
-                <th class="px-4 py-3 font-medium">Criterio</th>
-                <th class="px-4 py-3 font-medium">{% if es_evaluado %}Tu puntaje{% else %}Empleado{% endif %}</th>
-                <th class="px-4 py-3 font-medium">{% if es_evaluado %}Tu comentario{% else %}Comentario empleado{% endif %}</th>
-                <th class="px-4 py-3 font-medium">Puntaje supervisor</th>
-                <th class="px-4 py-3 font-medium">Comentario supervisor</th>
-                {% if evaluacion.comparacion_revelada %}
-                <th class="px-4 py-3 font-medium">Brecha</th>
-                {% endif %}
-            </tr>
-        </thead>
-        <tbody class="divide-y divide-slate-100 align-top">
-            {% for item in items %}
-            <tr>
-                <td class="px-4 py-3 font-medium text-slate-900">{{ item.criterio.competencia.nombre }}</td>
-                <td class="px-4 py-3">{{ item.puntaje_empleado|default:"—" }}</td>
-                <td class="px-4 py-3 text-slate-600 whitespace-pre-line">{{ item.comentario_empleado|default:"—" }}</td>
-                <td class="px-4 py-3">
-                    {% if evaluacion.comparacion_revelada %}{{ item.puntaje_supervisor|default:"—" }}{% else %}—{% endif %}
-                </td>
-                <td class="px-4 py-3 text-slate-600 whitespace-pre-line">
-                    {% if evaluacion.comparacion_revelada %}{{ item.comentario_supervisor|default:"—" }}{% else %}—{% endif %}
-                </td>
-                {% if evaluacion.comparacion_revelada %}
-                <td class="px-4 py-3 font-medium text-slate-800">{{ item.brecha_display }}</td>
-                {% endif %}
-            </tr>
-            {% empty %}
-            <tr>
-                <td colspan="{% if evaluacion.comparacion_revelada %}6{% else %}5{% endif %}" class="px-4 py-8 text-center text-slate-500">Sin ítems.</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+<div class="mt-6 space-y-4">
+    {% for grupo in grupos %}
+    <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+        {% if grupo.nombre %}
+        <h2 class="border-b border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-800">
+            {{ grupo.nombre }}
+        </h2>
+        {% endif %}
+        <table class="min-w-[720px] w-full text-left text-sm">
+            <thead class="border-b border-slate-200 bg-slate-50 text-slate-600">
+                <tr>
+                    <th class="px-3 py-2 font-medium">Criterio</th>
+                    <th class="px-3 py-2 font-medium">{% if es_evaluado %}Tu puntaje{% else %}Empleado{% endif %}</th>
+                    <th class="px-3 py-2 font-medium">{% if es_evaluado %}Tu devolución{% else %}Devolución empleado{% endif %}</th>
+                    <th class="px-3 py-2 font-medium">Puntaje supervisor</th>
+                    <th class="px-3 py-2 font-medium">Devolución supervisor</th>
+                    {% if evaluacion.comparacion_revelada %}
+                    <th class="px-3 py-2 font-medium">Brecha</th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 align-top">
+                {% for item in grupo.items %}
+                <tr>
+                    <td class="px-3 py-2">
+                        <p class="font-medium text-slate-900">{{ item.criterio.competencia.nombre }}</p>
+                        {% if item.criterio.competencia.descripcion %}
+                        <p class="mt-0.5 text-xs text-slate-500">{{ item.criterio.competencia.descripcion }}</p>
+                        {% endif %}
+                    </td>
+                    <td class="px-3 py-2">
+                        {% if item.criterio.es_texto %}—{% else %}{{ item.puntaje_empleado|default:"—" }}{% endif %}
+                    </td>
+                    <td class="px-3 py-2 text-slate-600 whitespace-pre-line">{{ item.comentario_empleado|default:"—" }}</td>
+                    <td class="px-3 py-2">
+                        {% if evaluacion.comparacion_revelada %}
+                            {% if item.criterio.es_texto %}—{% else %}{{ item.puntaje_supervisor|default:"—" }}{% endif %}
+                        {% else %}—{% endif %}
+                    </td>
+                    <td class="px-3 py-2 text-slate-600 whitespace-pre-line">
+                        {% if evaluacion.comparacion_revelada %}{{ item.comentario_supervisor|default:"—" }}{% else %}—{% endif %}
+                    </td>
+                    {% if evaluacion.comparacion_revelada %}
+                    <td class="px-3 py-2 font-medium text-slate-800">
+                        {% if item.criterio.es_texto %}—{% else %}{{ item.brecha_display }}{% endif %}
+                    </td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% empty %}
+    <div class="rounded-xl border border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-500">
+        Sin ítems.
+    </div>
+    {% endfor %}
 </div>
 
 {% if evaluacion.comparacion_revelada and evaluacion.feedback_supervisor %}

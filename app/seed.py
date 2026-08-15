@@ -11,6 +11,7 @@ from evaluaciones.models import (
     PlantillaCriterio,
     PlantillaEvaluacion,
     PlantillaPuesto,
+    RespuestaItem,
 )
 from evaluaciones.services import (
     activar_ciclo,
@@ -18,7 +19,7 @@ from evaluaciones.services import (
     guardar_autoevaluacion,
     guardar_eval_supervisor,
 )
-from organizacion.models import Area, Competencia, Puesto, PuestoCompetencia
+from organizacion.models import Area, Competencia, Puesto
 
 DEMO_PASSWORD = "ClaveDemo-2026"
 
@@ -225,18 +226,14 @@ def seed_demo(stdout=None):
         tipo=Competencia.Tipo.ACTITUDINAL,
         activa=True,
     )
-    for puesto, competencia, ponderacion in (
-        (puesto_jefe, comp_tec, Decimal("50")),
-        (puesto_jefe, comp_act, Decimal("50")),
-        (puesto_analista, comp_tec, Decimal("50")),
-        (puesto_analista, comp_act, Decimal("50")),
-    ):
-        PuestoCompetencia.objects.get_or_create(
-            puesto=puesto,
-            competencia=competencia,
-            defaults={"ponderacion": ponderacion},
-        )
-
+    comp_fortalezas, _ = _upsert_named(
+        Competencia,
+        empresa_a,
+        "Fortalezas destacadas",
+        descripcion="Aspectos a destacar del desempeño en el período.",
+        tipo=Competencia.Tipo.OBJETIVO,
+        activa=True,
+    )
     admin_a, _ = _upsert_usuario(
         EMAIL_RRHH_A,
         empresa_a,
@@ -307,19 +304,57 @@ def seed_demo(stdout=None):
         descripcion="Técnica y actitudinal para el ciclo demo.",
         activa=True,
     )
-    for orden, competencia in ((1, comp_tec), (2, comp_act)):
-        PlantillaCriterio.objects.get_or_create(
-            plantilla=plantilla,
-            competencia=competencia,
-            defaults={
-                "orden": orden,
+    criterios_demo = (
+        (
+            comp_tec,
+            {
+                "orden": 1,
+                "categoria": "Competencias generales",
+                "tipo_item": PlantillaCriterio.TipoItem.ESCALA,
                 "escala_min": 1,
                 "escala_max": 5,
                 "ponderacion": Decimal("50"),
-                "comentario_empleado_obligatorio": False,
-                "comentario_supervisor_obligatorio": False,
+                "comentario_empleado_obligatorio": True,
+                "comentario_supervisor_obligatorio": True,
             },
+        ),
+        (
+            comp_act,
+            {
+                "orden": 2,
+                "categoria": "Competencias generales",
+                "tipo_item": PlantillaCriterio.TipoItem.ESCALA,
+                "escala_min": 1,
+                "escala_max": 5,
+                "ponderacion": Decimal("50"),
+                "comentario_empleado_obligatorio": True,
+                "comentario_supervisor_obligatorio": True,
+            },
+        ),
+        (
+            comp_fortalezas,
+            {
+                "orden": 3,
+                "categoria": "Cierre",
+                "tipo_item": PlantillaCriterio.TipoItem.TEXTO,
+                "escala_min": 1,
+                "escala_max": 5,
+                "ponderacion": Decimal("0"),
+                "comentario_empleado_obligatorio": True,
+                "comentario_supervisor_obligatorio": True,
+            },
+        ),
+    )
+    for competencia, campos in criterios_demo:
+        criterio, created = PlantillaCriterio.objects.get_or_create(
+            plantilla=plantilla,
+            competencia=competencia,
+            defaults=campos,
         )
+        if not created:
+            for clave, valor in campos.items():
+                setattr(criterio, clave, valor)
+            criterio.save()
     for puesto in (puesto_jefe, puesto_analista):
         PlantillaPuesto.objects.get_or_create(plantilla=plantilla, puesto=puesto)
 
@@ -350,6 +385,35 @@ def seed_demo(stdout=None):
             stdout,
             f"El ciclo demo está en estado «{ciclo.estado}»; no se reactivó.",
         )
+
+    criterios_plantilla = list(plantilla.criterios.all())
+    for ev in Evaluacion.objects.filter(plantilla=plantilla):
+        existentes = {
+            item.criterio_id: item for item in ev.respuestas.select_related("criterio")
+        }
+        for criterio in criterios_plantilla:
+            item = existentes.get(criterio.pk)
+            if item is None:
+                item = RespuestaItem.objects.create(evaluacion=ev, criterio=criterio)
+            if ev.estado not in (
+                Evaluacion.Estado.PENDIENTE_AUTO,
+                Evaluacion.Estado.AUTO_BORRADOR,
+            ):
+                if criterio.es_escala and item.puntaje_empleado is None:
+                    item.puntaje_empleado = 4
+                if not (item.comentario_empleado or "").strip():
+                    item.comentario_empleado = "Comentario demo de autoevaluación."
+            if ev.estado not in (
+                Evaluacion.Estado.PENDIENTE_AUTO,
+                Evaluacion.Estado.AUTO_BORRADOR,
+                Evaluacion.Estado.AUTO_COMPLETA,
+                Evaluacion.Estado.SUPERVISOR_BORRADOR,
+            ):
+                if criterio.es_escala and item.puntaje_supervisor is None:
+                    item.puntaje_supervisor = 5
+                if not (item.comentario_supervisor or "").strip():
+                    item.comentario_supervisor = "Comentario demo del supervisor."
+            item.save()
 
     evals = {
         ev.evaluado_id: ev

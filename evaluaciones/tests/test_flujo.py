@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.urls import reverse
 
 from app.tests.factories import (
@@ -9,9 +11,10 @@ from app.tests.factories import (
     make_usuario,
 )
 from evaluaciones.exceptions import EvaluacionesError
-from evaluaciones.models import CicloEvaluacion, Evaluacion
+from evaluaciones.models import CicloEvaluacion, Evaluacion, PlantillaCriterio
 from evaluaciones.services import (
     activar_ciclo,
+    agrupar_items_por_categoria,
     calcular_firma_hash,
     firmar_conformidad,
     guardar_autoevaluacion,
@@ -641,4 +644,121 @@ class ResultadoPdfTests(CicloBaseTestCase):
             reverse("evaluaciones:resultado_pdf", args=[eval_b.pk])
         )
         self.assertEqual(response.status_code, 404)
+
+
+class ItemTextoYCategoriaTests(CicloBaseTestCase):
+    def setUp(self):
+        super().setUp()
+        self.criterio.categoria = "Competencias generales"
+        self.criterio.save(update_fields=["categoria"])
+        self.comp_texto = make_competencia(self.empresa, nombre="Fortalezas destacadas")
+        self.criterio_texto = _criterio(
+            self.plantilla,
+            self.comp_texto,
+            orden=2,
+            categoria="Cierre",
+            tipo_item=PlantillaCriterio.TipoItem.TEXTO,
+            ponderacion=Decimal("0"),
+            comentario_empleado_obligatorio=True,
+            comentario_supervisor_obligatorio=True,
+        )
+
+    def _items(self, evaluacion):
+        return {item.criterio_id: item for item in evaluacion.respuestas.all()}
+
+    def test_enviar_auto_texto_sin_puntaje(self):
+        activar_ciclo(self.ciclo, self.admin)
+        evaluacion = Evaluacion.objects.get(ciclo=self.ciclo, evaluado=self.empleado)
+        items = self._items(evaluacion)
+        guardar_autoevaluacion(
+            evaluacion,
+            {
+                items[self.criterio.pk].pk: {
+                    "puntaje_empleado": 4,
+                    "comentario_empleado": "Ok",
+                },
+                items[self.criterio_texto.pk].pk: {
+                    "puntaje_empleado": 3,
+                    "comentario_empleado": "Buena autonomía",
+                },
+            },
+            True,
+            self.empleado,
+        )
+        texto = evaluacion.respuestas.get(criterio=self.criterio_texto)
+        self.assertIsNone(texto.puntaje_empleado)
+        self.assertEqual(texto.comentario_empleado, "Buena autonomía")
+
+    def test_enviar_auto_texto_sin_devolucion_falla(self):
+        activar_ciclo(self.ciclo, self.admin)
+        evaluacion = Evaluacion.objects.get(ciclo=self.ciclo, evaluado=self.empleado)
+        items = self._items(evaluacion)
+        with self.assertRaises(EvaluacionesError):
+            guardar_autoevaluacion(
+                evaluacion,
+                {
+                    items[self.criterio.pk].pk: {
+                        "puntaje_empleado": 4,
+                        "comentario_empleado": "Ok",
+                    },
+                    items[self.criterio_texto.pk].pk: {
+                        "puntaje_empleado": None,
+                        "comentario_empleado": "",
+                    },
+                },
+                True,
+                self.empleado,
+            )
+
+    def test_formulario_muestra_categorias_y_devolucion(self):
+        activar_ciclo(self.ciclo, self.admin)
+        evaluacion = Evaluacion.objects.get(ciclo=self.ciclo, evaluado=self.empleado)
+        self.client.force_login(self.empleado)
+        response = self.client.get(reverse("evaluaciones:auto", args=[evaluacion.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Competencias generales")
+        self.assertContains(response, "Cierre")
+        self.assertContains(response, "Devolución")
+        self.assertContains(response, "Campo de texto")
+        self.assertContains(response, "Fortalezas destacadas")
+
+    def test_agrupar_items_por_categoria(self):
+        activar_ciclo(self.ciclo, self.admin)
+        evaluacion = Evaluacion.objects.get(ciclo=self.ciclo, evaluado=self.empleado)
+        grupos = agrupar_items_por_categoria(
+            evaluacion.respuestas.order_by("criterio__orden", "pk")
+        )
+        self.assertEqual(
+            [g["nombre"] for g in grupos], ["Competencias generales", "Cierre"]
+        )
+        self.assertEqual(len(grupos[0]["items"]), 1)
+        self.assertEqual(len(grupos[1]["items"]), 1)
+
+    def test_promedio_ignora_item_texto(self):
+        from evaluaciones.pdf import _promedio_ponderado
+
+        activar_ciclo(self.ciclo, self.admin)
+        evaluacion = Evaluacion.objects.get(ciclo=self.ciclo, evaluado=self.empleado)
+        items = self._items(evaluacion)
+        guardar_autoevaluacion(
+            evaluacion,
+            {
+                items[self.criterio.pk].pk: {
+                    "puntaje_empleado": 4,
+                    "comentario_empleado": "Ok",
+                },
+                items[self.criterio_texto.pk].pk: {
+                    "puntaje_empleado": None,
+                    "comentario_empleado": "Texto",
+                },
+            },
+            True,
+            self.empleado,
+        )
+        evaluacion.refresh_from_db()
+        promedio = _promedio_ponderado(
+            list(evaluacion.respuestas.select_related("criterio")),
+            "puntaje_empleado",
+        )
+        self.assertEqual(promedio, Decimal("4.00"))
 

@@ -1,0 +1,67 @@
+{% if not grupos %}
+<p class="text-sm text-slate-500">Esta plantilla no tiene criterios.</p>
+{% else %}
+<div class="space-y-4">
+    {% for grupo in grupos %}
+    <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+        {% if grupo.nombre %}
+        <h2 class="border-b border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-800">
+            {{ grupo.nombre }}
+        </h2>
+        {% endif %}
+        <table class="min-w-[520px] w-full text-left text-sm">
+            <thead class="border-b border-slate-200 bg-slate-50 text-slate-600">
+                <tr>
+                    <th class="px-3 py-2 font-medium">Criterio</th>
+                    <th class="px-3 py-2 font-medium w-24">Puntaje</th>
+                    <th class="px-3 py-2 font-medium">Devolución{% if rol == "empleado" %} del empleado{% else %} del supervisor{% endif %}</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 align-top">
+                {% for form in grupo.items %}
+                <tr>
+                    <td class="px-3 py-2">
+                        {{ form.id }}
+                        <p class="font-medium text-slate-900">{{ form.instance.criterio.competencia.nombre }}</p>
+                        {% if form.instance.criterio.competencia.descripcion %}
+                        <p class="mt-0.5 text-xs text-slate-500">{{ form.instance.criterio.competencia.descripcion }}</p>
+                        {% endif %}
+                        {% if form.es_texto %}
+                        <p class="mt-0.5 text-xs text-slate-400">Campo de texto</p>
+                        {% else %}
+                        <p class="mt-0.5 text-xs text-slate-400">
+                            Escala {{ form.instance.criterio.escala_min }}–{{ form.instance.criterio.escala_max }}
+                        </p>
+                        {% endif %}
+                    </td>
+                    <td class="px-3 py-2 w-24">
+                        {% if form.es_texto %}
+                        <span class="text-slate-400">—</span>
+                        {% elif rol == "empleado" %}
+                        {{ form.puntaje_empleado }}
+                        {{ form.puntaje_empleado.errors }}
+                        {% else %}
+                        {{ form.puntaje_supervisor }}
+                        {{ form.puntaje_supervisor.errors }}
+                        {% endif %}
+                    </td>
+                    <td class="px-3 py-2 min-w-48">
+                        {% if form.devolucion_obligatoria %}
+                        <span class="mb-1 block text-xs font-medium text-slate-500">Obligatoria al enviar</span>
+                        {% endif %}
+                        {% if rol == "empleado" %}
+                        {{ form.comentario_empleado }}
+                        {{ form.comentario_empleado.errors }}
+                        {% else %}
+                        {{ form.comentario_supervisor }}
+                        {{ form.comentario_supervisor.errors }}
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}

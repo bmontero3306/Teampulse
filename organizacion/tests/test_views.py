@@ -5,23 +5,12 @@ from app.tests.factories import (
     make_area,
     make_competencia,
     make_empresa,
+    make_plantilla,
     make_puesto,
     make_usuario,
 )
-from organizacion.models import Puesto, PuestoCompetencia
-
-
-def _formset_vacio(**extra):
-    data = {
-        "competencias-TOTAL_FORMS": "1",
-        "competencias-INITIAL_FORMS": "0",
-        "competencias-MIN_NUM_FORMS": "0",
-        "competencias-MAX_NUM_FORMS": "1000",
-        "competencias-0-competencia": "",
-        "competencias-0-ponderacion": "",
-    }
-    data.update(extra)
-    return data
+from evaluaciones.models import PlantillaPuesto
+from organizacion.models import Competencia, Puesto
 
 
 class VistasOrganizacionTests(TestCase):
@@ -78,7 +67,6 @@ class VistasOrganizacionTests(TestCase):
                 "area": "",
                 "puesto_superior": str(jefe.pk),
                 "activo": "on",
-                **_formset_vacio(),
             },
         )
         self.assertEqual(response.status_code, 200)
@@ -86,32 +74,18 @@ class VistasOrganizacionTests(TestCase):
         gerente.refresh_from_db()
         self.assertIsNone(gerente.puesto_superior_id)
 
-    def test_competencia_otra_empresa_no_se_asigna_por_vista(self):
+    def test_formulario_puesto_no_pide_competencias(self):
         puesto = make_puesto(self.empresa_a, nombre="Analista")
-        make_competencia(self.empresa_a, nombre="Local")
-        comp_b = make_competencia(self.empresa_b, nombre="Ajena")
+        plantilla = make_plantilla(self.empresa_a, nombre="Plantilla Analista")
+        PlantillaPuesto.objects.create(plantilla=plantilla, puesto=puesto)
         self.client.force_login(self.admin_a)
-        self.client.post(
-            reverse("organizacion:puesto_editar", args=[puesto.pk]),
-            {
-                "nombre": "Analista",
-                "descripcion": "",
-                "area": "",
-                "puesto_superior": "",
-                "activo": "on",
-                **_formset_vacio(
-                    **{
-                        "competencias-0-competencia": str(comp_b.pk),
-                        "competencias-0-ponderacion": "40",
-                    }
-                ),
-            },
+        response = self.client.get(
+            reverse("organizacion:puesto_editar", args=[puesto.pk])
         )
-        self.assertFalse(
-            PuestoCompetencia.objects.filter(
-                puesto=puesto, competencia=comp_b
-            ).exists()
-        )
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Competencias y ponderación")
+        self.assertContains(response, "plantilla por defecto del ciclo")
+        self.assertContains(response, "Plantilla Analista")
 
     def test_supervisor_lee_pero_no_crea(self):
         make_puesto(self.empresa_a, nombre="Visible")
@@ -139,8 +113,7 @@ class VistasOrganizacionTests(TestCase):
         )
         self.assertEqual(response.status_code, 404)
 
-    def test_crear_puesto_con_ponderacion_distinta_de_100(self):
-        competencia = make_competencia(self.empresa_a, nombre="Comunicación")
+    def test_crear_puesto(self):
         self.client.force_login(self.admin_a)
         response = self.client.post(
             reverse("organizacion:puesto_crear"),
@@ -150,26 +123,78 @@ class VistasOrganizacionTests(TestCase):
                 "area": "",
                 "puesto_superior": "",
                 "activo": "on",
-                **_formset_vacio(
-                    **{
-                        "competencias-0-competencia": str(competencia.pk),
-                        "competencias-0-ponderacion": "40",
-                    }
-                ),
             },
             follow=True,
         )
         self.assertEqual(response.status_code, 200)
-        puesto = Puesto.objects.get(nombre="Líder", empresa=self.empresa_a)
         self.assertTrue(
-            PuestoCompetencia.objects.filter(
-                puesto=puesto, competencia=competencia
-            ).exists()
+            Puesto.objects.filter(nombre="Líder", empresa=self.empresa_a).exists()
         )
-        self.assertContains(response, "40%")
-        self.assertContains(response, "Se recomienda 100%")
+        self.assertContains(response, "Puesto guardado correctamente.")
 
     def test_login_requerido(self):
         response = self.client.get(reverse("organizacion:puestos"))
         self.assertEqual(response.status_code, 302)
         self.assertIn("/cuentas/login/", response.url)
+
+
+class CompetenciaRapidaTests(TestCase):
+    def setUp(self):
+        self.empresa = make_empresa()
+        self.otra = make_empresa()
+        self.admin = make_usuario(self.empresa, rol="admin_rrhh")
+        self.empleado = make_usuario(self.empresa, rol="empleado")
+
+    def test_admin_crea_competencia_json(self):
+        self.client.force_login(self.admin)
+        response = self.client.post(
+            reverse("organizacion:competencia_rapida"),
+            {
+                "nombre": "Pensamiento crítico",
+                "tipo": Competencia.Tipo.ACTITUDINAL,
+                "descripcion": "Analiza problemas.",
+            },
+        )
+        self.assertEqual(response.status_code, 201)
+        payload = response.json()
+        self.assertEqual(payload["nombre"], "Pensamiento crítico")
+        competencia = Competencia.objects.get(pk=payload["id"])
+        self.assertEqual(competencia.empresa_id, self.empresa.pk)
+        self.assertTrue(competencia.activa)
+        self.assertEqual(competencia.tipo, Competencia.Tipo.ACTITUDINAL)
+
+    def test_nombre_vacio_devuelve_400(self):
+        self.client.force_login(self.admin)
+        response = self.client.post(
+            reverse("organizacion:competencia_rapida"),
+            {"nombre": "", "tipo": Competencia.Tipo.TECNICA},
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("nombre", response.json()["errors"])
+
+    def test_empleado_no_crea(self):
+        self.client.force_login(self.empleado)
+        response = self.client.post(
+            reverse("organizacion:competencia_rapida"),
+            {"nombre": "No debería", "tipo": Competencia.Tipo.TECNICA},
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(
+            Competencia.objects.filter(nombre="No debería").exists()
+        )
+
+    def test_no_crea_en_otra_empresa(self):
+        admin_b = make_usuario(self.otra, rol="admin_rrhh")
+        self.client.force_login(admin_b)
+        response = self.client.post(
+            reverse("organizacion:competencia_rapida"),
+            {"nombre": "Solo B", "tipo": Competencia.Tipo.TECNICA},
+        )
+        self.assertEqual(response.status_code, 201)
+        competencia = Competencia.objects.get(nombre="Solo B")
+        self.assertEqual(competencia.empresa_id, self.otra.pk)
+        self.assertFalse(
+            Competencia.objects.filter(
+                nombre="Solo B", empresa=self.empresa
+            ).exists()
+        )

@@ -10,6 +10,7 @@ from cuentas.models import Usuario
 from evaluaciones.forms import PlantillaEvaluacionForm, plantilla_criterio_formset
 from evaluaciones.models import PlantillaEvaluacion
 from evaluaciones.services import duplicar_plantilla
+from organizacion.models import Competencia
 
 
 ROLES_LECTURA = [
@@ -68,11 +69,21 @@ class PlantillaFormView(PlantillaCRUDMixin, View):
         )
 
     def _context(self, form, formset, plantilla):
+        puestos_qs = form.fields["puestos"].queryset
         return {
             "form": form,
             "formset": formset,
             "plantilla": plantilla,
             "puede_editar": True,
+            "puestos_opciones": [
+                {
+                    "id": puesto.pk,
+                    "nombre": puesto.nombre,
+                    "area": puesto.area.nombre if puesto.area_id else "",
+                }
+                for puesto in puestos_qs
+            ],
+            "competencia_tipos": Competencia.Tipo.choices,
         }
 
     def get(self, request, pk=None):

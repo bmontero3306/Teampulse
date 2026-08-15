@@ -29,6 +29,8 @@ def _datos_formset(competencia, extra=None):
         "criterios-MIN_NUM_FORMS": "0",
         "criterios-MAX_NUM_FORMS": "1000",
         "criterios-0-competencia": str(competencia.pk),
+        "criterios-0-categoria": "",
+        "criterios-0-tipo_item": "escala",
         "criterios-0-orden": "1",
         "criterios-0-escala_min": "1",
         "criterios-0-escala_max": "5",
@@ -54,6 +56,8 @@ class DuplicarPlantillaTests(TestCase):
         self.criterio = PlantillaCriterio.objects.create(
             plantilla=self.plantilla,
             competencia=self.competencia,
+            categoria="Competencias generales",
+            tipo_item=PlantillaCriterio.TipoItem.ESCALA,
             orden=1,
             escala_min=1,
             escala_max=5,
@@ -76,6 +80,8 @@ class DuplicarPlantillaTests(TestCase):
         self.assertNotEqual(criterio_copia.pk, self.criterio.pk)
         self.assertEqual(criterio_copia.competencia_id, self.competencia.pk)
         self.assertEqual(criterio_copia.ponderacion, Decimal("40.00"))
+        self.assertEqual(criterio_copia.categoria, "Competencias generales")
+        self.assertEqual(criterio_copia.tipo_item, PlantillaCriterio.TipoItem.ESCALA)
         self.assertTrue(criterio_copia.comentario_empleado_obligatorio)
         self.assertEqual(
             list(copia.puestos.values_list("pk", flat=True)),
@@ -172,6 +178,39 @@ class PlantillaValidacionTests(TestCase):
         with self.assertRaises(ValidationError):
             criterio.full_clean()
 
+    def test_item_texto_no_exige_escala_y_pondera_cero(self):
+        criterio = PlantillaCriterio(
+            plantilla=self.plantilla,
+            competencia=self.competencia,
+            categoria="Cierre",
+            tipo_item=PlantillaCriterio.TipoItem.TEXTO,
+            orden=1,
+            escala_min=5,
+            escala_max=5,
+            ponderacion=Decimal("20"),
+        )
+        criterio.full_clean()
+        self.assertEqual(criterio.ponderacion, Decimal("0"))
+        self.assertTrue(criterio.es_texto)
+
+    def test_vista_crea_criterio_solo_texto(self):
+        admin = make_usuario(self.empresa, rol="admin_rrhh")
+        self.client.force_login(admin)
+        datos = _datos_formset(
+            self.competencia,
+            extra={
+                "criterios-0-categoria": "Cierre",
+                "criterios-0-tipo_item": "texto",
+                "criterios-0-ponderacion": "15",
+            },
+        )
+        response = self.client.post(reverse("evaluaciones:plantilla_crear"), datos)
+        self.assertEqual(response.status_code, 302)
+        criterio = PlantillaCriterio.objects.get(competencia=self.competencia)
+        self.assertEqual(criterio.tipo_item, PlantillaCriterio.TipoItem.TEXTO)
+        self.assertEqual(criterio.categoria, "Cierre")
+        self.assertEqual(criterio.ponderacion, Decimal("0"))
+
 
 class PlantillaPermisosTests(TestCase):
     def setUp(self):
@@ -231,3 +270,38 @@ class PlantillaPermisosTests(TestCase):
         response = self.client.get(reverse("evaluaciones:plantillas"))
         self.assertContains(response, "Visible")
         self.assertNotContains(response, "Ajena")
+
+
+class PlantillaFormularioUXTests(TestCase):
+    def setUp(self):
+        self.empresa = make_empresa()
+        self.admin = make_usuario(self.empresa, rol="admin_rrhh")
+        self.competencia = make_competencia(self.empresa, nombre="Comunicación")
+        self.puesto = make_puesto(self.empresa, nombre="Analista")
+        self.client.force_login(self.admin)
+
+    def test_formulario_tiene_buscador_de_puestos_y_labels_claros(self):
+        response = self.client.get(reverse("evaluaciones:plantilla_crear"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Buscar puesto")
+        self.assertContains(response, "Analista")
+        self.assertContains(response, "Agregar criterio")
+        self.assertContains(response, "Editar")
+        self.assertContains(response, "Devolución del empleado obligatoria")
+        self.assertContains(response, "Devolución del supervisor obligatoria")
+        self.assertContains(response, "Quitar de la plantilla")
+        self.assertContains(response, "Crear una competencia nueva")
+        self.assertNotContains(response, "Dev. emp.")
+        self.assertNotContains(response, "Ctrl o Cmd")
+
+    def test_asocia_puestos_de_la_empresa(self):
+        response = self.client.post(
+            reverse("evaluaciones:plantilla_crear"),
+            _datos_formset(
+                self.competencia,
+                extra={"puestos": [str(self.puesto.pk)]},
+            ),
+        )
+        self.assertEqual(response.status_code, 302)
+        plantilla = PlantillaEvaluacion.objects.get(nombre="Plantilla técnica")
+        self.assertEqual(list(plantilla.puestos.all()), [self.puesto])

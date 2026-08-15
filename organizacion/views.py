@@ -1,7 +1,5 @@
-from decimal import Decimal
-
 from django.contrib import messages
-from django.db import transaction
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views import View
 from django.views.generic import ListView, TemplateView
@@ -9,12 +7,7 @@ from django.views.generic import ListView, TemplateView
 from app.mixins import EmpresaRequiredMixin, RolRequiredMixin
 from auditoria.services import registrar_auditoria
 from cuentas.models import Usuario
-from organizacion.forms import (
-    AreaForm,
-    CompetenciaForm,
-    PuestoForm,
-    puesto_competencia_formset,
-)
+from organizacion.forms import AreaForm, CompetenciaForm, PuestoForm
 from organizacion.models import Area, Competencia, Puesto
 from organizacion.services import query_organigrama
 
@@ -92,10 +85,9 @@ def _filtrar_competencias_lectura(qs, user):
         if user.rol == Usuario.Rol.SUPERVISOR:
             return qs.filter(activa=True)
         return qs
-    puesto = _puesto_usuario(user)
-    if puesto is None:
+    if _puesto_usuario(user) is None:
         return qs.none()
-    return qs.filter(puesto_competencias__puesto=puesto).distinct()
+    return qs.filter(activa=True)
 
 
 class OrganigramaView(OrganizacionLecturaMixin, TemplateView):
@@ -235,16 +227,28 @@ class CompetenciaFormView(OrganizacionCRUDMixin, View):
         )
 
 
-def _suma_ponderaciones(formset):
-    total = Decimal("0")
-    for form in formset.forms:
-        data = getattr(form, "cleaned_data", None)
-        if not data or data.get("DELETE"):
-            continue
-        if not data.get("competencia"):
-            continue
-        total += data.get("ponderacion") or Decimal("0")
-    return total
+class CompetenciaRapidaView(OrganizacionCRUDMixin, View):
+    """Alta JSON para crear una competencia desde el formulario de plantilla."""
+
+    http_method_names = ["post"]
+
+    def post(self, request):
+        datos = request.POST.copy()
+        datos["activa"] = "on"
+        form = CompetenciaForm(datos, empresa=request.empresa)
+        if not form.is_valid():
+            return JsonResponse({"errors": form.errors.get_json_data()}, status=400)
+        competencia = form.save()
+        registrar_auditoria(request, accion="crear", instance=competencia)
+        return JsonResponse(
+            {
+                "id": competencia.pk,
+                "nombre": competencia.nombre,
+                "tipo": competencia.tipo,
+                "tipo_display": competencia.get_tipo_display(),
+            },
+            status=201,
+        )
 
 
 class PuestoFormView(OrganizacionCRUDMixin, View):
@@ -258,48 +262,32 @@ class PuestoFormView(OrganizacionCRUDMixin, View):
             Puesto.objects.for_empresa(self.request.empresa), pk=pk
         )
 
-    def _context(self, form, formset, puesto):
+    def _context(self, form, puesto):
+        plantillas_puesto = []
+        if puesto is not None:
+            plantillas_puesto = puesto.plantillas.filter(activa=True).order_by("nombre")
         return {
             "form": form,
-            "formset": formset,
             "puesto": puesto,
+            "plantillas_puesto": plantillas_puesto,
             "puede_editar": True,
         }
 
     def get(self, request, pk=None):
         puesto = self.get_object()
         form = PuestoForm(empresa=request.empresa, instance=puesto)
-        formset = puesto_competencia_formset(
-            request.empresa, instance=form.instance
-        )
-        return render(request, self.template_name, self._context(form, formset, puesto))
+        return render(request, self.template_name, self._context(form, puesto))
 
     def post(self, request, pk=None):
         puesto = self.get_object()
         form = PuestoForm(request.POST, empresa=request.empresa, instance=puesto)
-        formset = puesto_competencia_formset(
-            request.empresa, data=request.POST, instance=form.instance
-        )
-        if form.is_valid() and formset.is_valid():
-            with transaction.atomic():
-                guardado = form.save()
-                formset.instance = guardado
-                formset.save()
+        if form.is_valid():
+            guardado = form.save()
             registrar_auditoria(
                 request,
                 accion="crear" if puesto is None else "editar",
                 instance=guardado,
             )
-            total = _suma_ponderaciones(formset)
-            if total != Decimal("100") and total > 0:
-                suma = format(total.quantize(Decimal("0.01")), "f").rstrip("0").rstrip(".")
-                messages.warning(
-                    request,
-                    f"La suma de ponderaciones es {suma}%. Se recomienda 100%, "
-                    "pero el puesto se guardó igual.",
-                )
             messages.success(request, "Puesto guardado correctamente.")
             return redirect("organizacion:puestos")
-        return render(
-            request, self.template_name, self._context(form, formset, puesto)
-        )
+        return render(request, self.template_name, self._context(form, puesto))

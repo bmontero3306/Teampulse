@@ -57,6 +57,10 @@ class PlantillaEvaluacion(models.Model):
 
 
 class PlantillaCriterio(models.Model):
+    class TipoItem(models.TextChoices):
+        ESCALA = "escala", "Escala numérica"
+        TEXTO = "texto", "Solo texto"
+
     plantilla = models.ForeignKey(
         PlantillaEvaluacion,
         on_delete=models.CASCADE,
@@ -69,6 +73,13 @@ class PlantillaCriterio(models.Model):
         related_name="criterios_plantilla",
         verbose_name="competencia",
     )
+    categoria = models.CharField("categoría", max_length=200, blank=True)
+    tipo_item = models.CharField(
+        "tipo de ítem",
+        max_length=20,
+        choices=TipoItem.choices,
+        default=TipoItem.ESCALA,
+    )
     orden = models.PositiveIntegerField("orden", default=1)
     escala_min = models.IntegerField("escala mínima", default=1)
     escala_max = models.IntegerField("escala máxima", default=5)
@@ -80,11 +91,11 @@ class PlantillaCriterio(models.Model):
     )
     comentario_empleado_obligatorio = models.BooleanField(
         "comentario del empleado obligatorio",
-        default=False,
+        default=True,
     )
     comentario_supervisor_obligatorio = models.BooleanField(
         "comentario del supervisor obligatorio",
-        default=False,
+        default=True,
     )
 
     class Meta:
@@ -95,14 +106,29 @@ class PlantillaCriterio(models.Model):
     def __str__(self):
         return f"{self.plantilla} · {self.competencia}"
 
+    @property
+    def es_escala(self):
+        return self.tipo_item == self.TipoItem.ESCALA
+
+    @property
+    def es_texto(self):
+        return self.tipo_item == self.TipoItem.TEXTO
+
     def clean(self):
         super().clean()
-        if self.escala_min >= self.escala_max:
-            raise ValidationError(
-                {
-                    "escala_max": "La escala mínima debe ser menor que la máxima.",
-                }
-            )
+        if self.es_texto:
+            self.ponderacion = Decimal("0")
+        else:
+            if (
+                self.escala_min is not None
+                and self.escala_max is not None
+                and self.escala_min >= self.escala_max
+            ):
+                raise ValidationError(
+                    {
+                        "escala_max": "La escala mínima debe ser menor que la máxima.",
+                    }
+                )
         if self.ponderacion is not None and self.ponderacion < 0:
             raise ValidationError(
                 {"ponderacion": "La ponderación no puede ser negativa."}

@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django import forms
 from django.db.models import Q
 from django.forms import BaseInlineFormSet, inlineformset_factory, modelformset_factory
@@ -18,16 +20,25 @@ TEXTAREA_CSS = (
     "focus:ring-1 focus:ring-sky-500 min-h-24"
 )
 
-SELECT_MULTIPLE_CSS = SELECT_CSS + " min-h-40"
+TEXTAREA_COMPACT_CSS = (
+    "block w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 "
+    "text-sm text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none "
+    "focus:ring-1 focus:ring-sky-500 min-h-16"
+)
+
+SELECT_PUNTAJE_CSS = SELECT_CSS + " w-20"
 
 
 class PlantillaEvaluacionForm(forms.ModelForm):
     puestos = forms.ModelMultipleChoiceField(
         queryset=Puesto.objects.none(),
         required=False,
-        widget=forms.SelectMultiple(attrs={"class": SELECT_MULTIPLE_CSS, "size": "8"}),
+        widget=forms.CheckboxSelectMultiple(),
         label="Puestos asociados",
-        help_text="Seleccioná uno o más puestos de esta empresa. Ctrl o Cmd para múltiples.",
+        help_text=(
+            "Buscá y agregá los puestos que usan esta plantilla. "
+            "Si un puesto está asociado, esta plantilla gana sobre la del ciclo."
+        ),
     )
 
     class Meta:
@@ -53,7 +64,9 @@ class PlantillaEvaluacionForm(forms.ModelForm):
                 .distinct()
             )
             self.fields["puestos"].initial = self.instance.puestos.all()
-        self.fields["puestos"].queryset = puestos_qs.order_by("nombre")
+        self.fields["puestos"].queryset = puestos_qs.select_related("area").order_by(
+            "nombre"
+        )
 
     def clean_puestos(self):
         puestos = self.cleaned_data.get("puestos")
@@ -79,6 +92,8 @@ class PlantillaCriterioForm(forms.ModelForm):
         model = PlantillaCriterio
         fields = [
             "competencia",
+            "categoria",
+            "tipo_item",
             "orden",
             "escala_min",
             "escala_max",
@@ -88,6 +103,14 @@ class PlantillaCriterioForm(forms.ModelForm):
         ]
         widgets = {
             "competencia": forms.Select(attrs={"class": SELECT_CSS}),
+            "categoria": forms.TextInput(
+                attrs={
+                    "class": INPUT_CSS,
+                    "list": "categorias-plantilla",
+                    "placeholder": "Ej. Competencias generales",
+                }
+            ),
+            "tipo_item": forms.Select(attrs={"class": SELECT_CSS + " tipo-item"}),
             "orden": forms.NumberInput(attrs={"class": INPUT_CSS, "min": "1"}),
             "escala_min": forms.NumberInput(attrs={"class": INPUT_CSS}),
             "escala_max": forms.NumberInput(attrs={"class": INPUT_CSS}),
@@ -113,6 +136,7 @@ class PlantillaCriterioForm(forms.ModelForm):
         self.fields["competencia"].queryset = qs.order_by("nombre")
         self.fields["competencia"].empty_label = "— Elegir competencia —"
         self.fields["orden"].required = False
+        self.fields["categoria"].required = False
 
     def clean_competencia(self):
         competencia = self.cleaned_data.get("competencia")
@@ -128,6 +152,12 @@ class PlantillaCriterioForm(forms.ModelForm):
 
     def clean(self):
         cleaned = super().clean()
+        tipo_item = cleaned.get("tipo_item") or PlantillaCriterio.TipoItem.ESCALA
+        if tipo_item == PlantillaCriterio.TipoItem.TEXTO:
+            cleaned["ponderacion"] = Decimal("0")
+            cleaned["escala_min"] = cleaned.get("escala_min") or 1
+            cleaned["escala_max"] = cleaned.get("escala_max") or 5
+            return cleaned
         escala_min = cleaned.get("escala_min")
         escala_max = cleaned.get("escala_max")
         ponderacion = cleaned.get("ponderacion")
@@ -145,8 +175,8 @@ class BasePlantillaCriterioFormSet(BaseInlineFormSet):
     def add_fields(self, form, index):
         super().add_fields(form, index)
         if "DELETE" in form.fields:
-            form.fields["DELETE"].label = "Quitar"
-            form.fields["DELETE"].widget.attrs["class"] = CHECKBOX_CSS
+            form.fields["DELETE"].label = "Quitar de la plantilla"
+            form.fields["DELETE"].widget.attrs["class"] = CHECKBOX_CSS + " js-quitar-criterio"
 
     def clean(self):
         super().clean()
@@ -176,7 +206,7 @@ def plantilla_criterio_formset(empresa, **kwargs):
         PlantillaCriterio,
         form=PlantillaCriterioForm,
         formset=BasePlantillaCriterioFormSet,
-        extra=1,
+        extra=0,
         can_delete=True,
         min_num=0,
         validate_min=False,
@@ -308,56 +338,70 @@ class CicloReprogramarForm(forms.Form):
         return cleaned
 
 
+def _choices_escala(criterio):
+    if criterio is None:
+        return [("", "—")]
+    return [("", "—")] + [
+        (i, str(i)) for i in range(criterio.escala_min, criterio.escala_max + 1)
+    ]
+
+
+def _coerce_puntaje(value):
+    if value in (None, ""):
+        return None
+    return int(value)
+
+
+def _configurar_item_form(form, puntaje_field, comentario_field, flag_obligatorio):
+    criterio = getattr(form.instance, "criterio", None)
+    form.fields[comentario_field].required = False
+    valor = getattr(form.instance, puntaje_field, None)
+    form.fields[puntaje_field] = forms.TypedChoiceField(
+        choices=_choices_escala(criterio),
+        required=False,
+        coerce=_coerce_puntaje,
+        empty_value=None,
+        widget=forms.Select(attrs={"class": SELECT_PUNTAJE_CSS}),
+        initial="" if valor is None else valor,
+    )
+    form.fields[comentario_field].widget = forms.Textarea(
+        attrs={"class": TEXTAREA_COMPACT_CSS, "rows": 2}
+    )
+    form.fields[comentario_field].label = "Devolución"
+    form.es_texto = bool(criterio and criterio.es_texto)
+    form.devolucion_obligatoria = bool(
+        criterio and getattr(criterio, flag_obligatorio, False)
+    )
+
+
 class AutoevaluacionItemForm(forms.ModelForm):
     class Meta:
         model = RespuestaItem
         fields = ["puntaje_empleado", "comentario_empleado"]
-        widgets = {
-            "puntaje_empleado": forms.NumberInput(attrs={"class": INPUT_CSS}),
-            "comentario_empleado": forms.Textarea(
-                attrs={"class": TEXTAREA_CSS, "rows": 3}
-            ),
-        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        criterio = getattr(self.instance, "criterio", None)
-        if criterio is not None:
-            self.fields["puntaje_empleado"].widget.attrs.update(
-                {
-                    "min": str(criterio.escala_min),
-                    "max": str(criterio.escala_max),
-                    "placeholder": f"{criterio.escala_min} – {criterio.escala_max}",
-                }
-            )
-        self.fields["puntaje_empleado"].required = False
-        self.fields["comentario_empleado"].required = False
+        _configurar_item_form(
+            self,
+            "puntaje_empleado",
+            "comentario_empleado",
+            "comentario_empleado_obligatorio",
+        )
 
 
 class SupervisorItemForm(forms.ModelForm):
     class Meta:
         model = RespuestaItem
         fields = ["puntaje_supervisor", "comentario_supervisor"]
-        widgets = {
-            "puntaje_supervisor": forms.NumberInput(attrs={"class": INPUT_CSS}),
-            "comentario_supervisor": forms.Textarea(
-                attrs={"class": TEXTAREA_CSS, "rows": 3}
-            ),
-        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        criterio = getattr(self.instance, "criterio", None)
-        if criterio is not None:
-            self.fields["puntaje_supervisor"].widget.attrs.update(
-                {
-                    "min": str(criterio.escala_min),
-                    "max": str(criterio.escala_max),
-                    "placeholder": f"{criterio.escala_min} – {criterio.escala_max}",
-                }
-            )
-        self.fields["puntaje_supervisor"].required = False
-        self.fields["comentario_supervisor"].required = False
+        _configurar_item_form(
+            self,
+            "puntaje_supervisor",
+            "comentario_supervisor",
+            "comentario_supervisor_obligatorio",
+        )
 
 
 class SupervisorCierreForm(forms.Form):
