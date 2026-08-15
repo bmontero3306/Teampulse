@@ -28,6 +28,13 @@ def _env_bool(name: str, default: bool) -> bool:
     return raw.strip().lower() in {"1", "true", "t", "yes", "si", "sí"}
 
 
+def _env_list(name: str) -> list[str]:
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return []
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
+
 _cargar_env(BASE_DIR / ".env")
 
 SECRET_KEY = os.environ.get(
@@ -37,11 +44,21 @@ SECRET_KEY = os.environ.get(
 
 DEBUG = _env_bool("DEBUG", True)
 
-ALLOWED_HOSTS = []
-# WP10 — en producción: DEBUG=False y ALLOWED_HOSTS vía .env
-_hosts = os.environ.get("ALLOWED_HOSTS", "").strip()
-if _hosts:
-    ALLOWED_HOSTS = [h.strip() for h in _hosts.split(",") if h.strip()]
+# WP10 — en producción: DEBUG=False y ALLOWED_HOSTS / CSRF vía .env
+ALLOWED_HOSTS = _env_list("ALLOWED_HOSTS")
+CSRF_TRUSTED_ORIGINS = _env_list("CSRF_TRUSTED_ORIGINS")
+
+# Render inyecta RENDER_EXTERNAL_HOSTNAME (ej. teampulse.onrender.com).
+_render_host = os.environ.get("RENDER_EXTERNAL_HOSTNAME", "").strip()
+if _render_host:
+    if _render_host not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(_render_host)
+    _render_origin = f"https://{_render_host}"
+    if _render_origin not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(_render_origin)
+
+if os.environ.get("RENDER"):
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -64,6 +81,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -128,6 +146,14 @@ USE_TZ = True
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [BASE_DIR / "static"] if (BASE_DIR / "static").exists() else []
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+    },
+}
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -171,4 +197,5 @@ AUTHENTICATION_BACKENDS = [
 
 # WP10
 # seed_demo, tests de aceptación y ALLOWED_HOSTS desde .env (arriba).
-# Producción: DEBUG=False; WhiteNoise/static opcional, fuera de MVP.
+# Producción / Render: DEBUG=False, SECRET_KEY y hosts vía env.
+# WhiteNoise sirve estáticos detrás de Gunicorn.

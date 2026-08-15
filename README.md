@@ -92,13 +92,22 @@ Con un usuario `admin_rrhh` o `superadmin` (este último con empresa seleccionad
 
 Notifica in-app + email (consola en desarrollo) a quienes tienen evaluaciones pendientes en un ciclo activo.
 
+## Demo en Render
+
+El repo incluye `render.yaml`. En el dashboard: **New → Blueprint** y elegí este repo, o creá un **Web Service** a mano:
+
+- **Build:** `pip install -r requirements.txt && python manage.py collectstatic --noinput`
+- **Start:** `python manage.py migrate --noinput && python manage.py seed_demo && gunicorn teampulse.wsgi:application --bind 0.0.0.0:$PORT --workers 1`
+- Env: `PYTHON_VERSION=3.12.8`, `SECRET_KEY` (generada), `DEBUG=False`. `ALLOWED_HOSTS` y CSRF se completan solos con `RENDER_EXTERNAL_HOSTNAME`.
+
+En el plan free el disco es efímero: al dormirse o redeployar se pierde el SQLite y el start vuelve a sembrar las cuentas demo (`ClaveDemo-2026`). Un solo worker evita locks de SQLite.
+
 ## Producción (fuera del MVP de deploy)
 
 - `DEBUG=False` y `SECRET_KEY` fuerte en `.env`.
-- `ALLOWED_HOSTS` con el dominio real (separado por comas).
+- `ALLOWED_HOSTS` / `CSRF_TRUSTED_ORIGINS` con el dominio real (en Render se inyectan solos).
 - Cambiar el mailer de consola a SMTP en `MAILERS`.
-- `python manage.py collectstatic` hacia `STATIC_ROOT`.
-- WhiteNoise (u otro servidor de estáticos) es **opcional** y queda fuera del MVP; en desarrollo Django sirve `static/` con `DEBUG=True`.
+- `python manage.py collectstatic` hacia `STATIC_ROOT` (WhiteNoise lo sirve detrás de Gunicorn).
 - SQLite alcanza para demo; un PostgreSQL queda para una etapa posterior.
 
 ## Ayuda in-app
