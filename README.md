@@ -97,10 +97,10 @@ Notifica in-app + email (consola en desarrollo) a quienes tienen evaluaciones pe
 El repo incluye `render.yaml`. En el dashboard: **New → Blueprint** y elegí este repo, o creá un **Web Service** a mano:
 
 - **Build:** `pip install -r requirements.txt && python manage.py collectstatic --noinput`
-- **Start:** `python manage.py migrate --noinput && python manage.py seed_demo && gunicorn teampulse.wsgi:application --bind 0.0.0.0:$PORT --workers 1`
+- **Start:** `rm -f db.sqlite3 db.sqlite3-journal && python manage.py migrate --noinput && python manage.py seed_demo && gunicorn teampulse.wsgi:application --bind 0.0.0.0:$PORT --workers 1`
 - Env: `PYTHON_VERSION=3.12.8`, `SECRET_KEY` (generada), `DEBUG=False`. `ALLOWED_HOSTS` y CSRF se completan solos con `RENDER_EXTERNAL_HOSTNAME`.
 
-En el plan free el disco es efímero: al dormirse o redeployar se pierde el SQLite y el start vuelve a sembrar las cuentas demo (`ClaveDemo-2026`). Un solo worker evita locks de SQLite.
+Cada arranque borra el SQLite, migra y vuelve a sembrar las cuentas demo (`ClaveDemo-2026`). En free el disco además es efímero. Un solo worker evita locks de SQLite.
 
 ## Producción (fuera del MVP de deploy)
 
