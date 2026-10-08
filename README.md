@@ -2,13 +2,16 @@
 
 Sistema de gestión de desempeño (autoevaluación, evaluación de supervisor, firma de conformidad y reportes ISO 9001).
 
-**Stack:** Django 6.1 · Python 3.12+ · Tailwind CSS v4 (CDN) · SQLite en desarrollo.
+**Stack:** Django 6.1 + Django REST Framework (token) · Angular 22 · Tailwind CSS v4 · SQLite en desarrollo.
+
+La interfaz es la SPA de `frontend/`. Django expone `/api/v1/` y el admin. Las plantillas HTML solo se montan al correr los tests.
 
 Idioma de producto: español. Zona horaria: `America/Argentina/Buenos_Aires`.
 
 ## Requisitos
 
 - Python 3.12 o superior (probado con 3.13)
+- Node.js 22 o superior (Corepack trae pnpm para `frontend/`)
 
 ## Arranque local
 
@@ -30,7 +33,24 @@ Opcional: copiá `.env.example` a `.env` y ajustá `SECRET_KEY` / `DEBUG`. Sin `
 .\.venv\Scripts\python.exe manage.py runserver
 ```
 
-Abrí [http://127.0.0.1:8000/](http://127.0.0.1:8000/). Los estilos salen del Play CDN de Tailwind v4 (`@tailwindcss/browser`), sin proceso extra ni `styles.css` compilado.
+En otra terminal, la SPA (el proxy manda `/api` a Django):
+
+```powershell
+cd frontend
+corepack pnpm install
+corepack pnpm start
+```
+
+Abrí [http://localhost:4200/](http://localhost:4200/). El login es `POST /api/v1/auth/login/` y el cliente manda `Authorization: Token …`. El superadmin elige empresa con el header `X-Empresa-Id`.
+
+Para servir la SPA desde Django (como en Render) hace falta el build:
+
+```powershell
+cd frontend
+corepack pnpm build
+```
+
+y después [http://127.0.0.1:8000/](http://127.0.0.1:8000/).
 
 ## Datos demo (`seed_demo`)
 
@@ -96,7 +116,7 @@ Notifica in-app + email (consola en desarrollo) a quienes tienen evaluaciones pe
 
 El repo incluye `render.yaml`. En el dashboard: **New → Blueprint** y elegí este repo, o creá un **Web Service** a mano:
 
-- **Build:** `pip install -r requirements.txt && python manage.py collectstatic --noinput`
+- **Build:** instala Python y Node, compila `frontend/` y corre `collectstatic` (ver `render.yaml`)
 - **Start:** `rm -f db.sqlite3 db.sqlite3-journal && python manage.py migrate --noinput && python manage.py seed_demo && gunicorn teampulse.wsgi:application --bind 0.0.0.0:$PORT --workers 1`
 - Env: `PYTHON_VERSION=3.12.8`, `SECRET_KEY` (generada), `DEBUG=False`. `ALLOWED_HOSTS` y CSRF se completan solos con `RENDER_EXTERNAL_HOSTNAME`.
 
@@ -125,4 +145,6 @@ Con sesión iniciada, el menú **Ayuda** (`/ayuda/`) explica el proceso, las pie
 - `notificaciones/` — in-app + email
 - `auditoria/` — AuditLog
 - `reportes/` — ISO 9001 PDF/Excel
-- `theme/` — plantillas base (`base.html`, `app_shell.html`) y estáticos
+- `theme/` — estáticos y plantillas que todavía usa la suite de tests
+- `frontend/` — SPA Angular (auth, shell, módulos de negocio)
+- `*/api/` — serializers y vistas DRF bajo `/api/v1/`

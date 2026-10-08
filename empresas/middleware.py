@@ -12,7 +12,17 @@ class EmpresaMiddleware:
             empresa = getattr(user, "empresa", None)
             rol = getattr(user, "rol", None)
             if rol == "superadmin":
-                empresa_id = request.session.get("empresa_id")
+                # La SPA manda el tenant en el header; la sesión queda para /admin/.
+                empresa_id = request.META.get("HTTP_X_EMPRESA_ID") or request.session.get(
+                    "empresa_id"
+                )
+                if isinstance(empresa_id, str):
+                    empresa_id = empresa_id.strip() or None
+                if empresa_id is not None:
+                    try:
+                        empresa_id = int(empresa_id)
+                    except (TypeError, ValueError):
+                        empresa_id = None
                 if empresa_id:
                     from empresas.models import Empresa
 

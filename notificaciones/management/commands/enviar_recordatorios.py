@@ -1,5 +1,6 @@
 from django.core.management.base import BaseCommand
-from django.urls import reverse
+
+from app.rutas import ruta
 
 from notificaciones.events import RECORDATORIO_VENCIMIENTO
 from notificaciones.services import notificar
@@ -76,16 +77,32 @@ class Command(BaseCommand):
         for evaluacion in qs:
             if evaluacion.estado in pendientes_auto:
                 usuario = evaluacion.evaluado
-                url = reverse("evaluaciones:auto", args=[evaluacion.pk])
+                url = ruta(
+                    "evaluaciones:auto",
+                    f"/evaluaciones/{evaluacion.pk}/autoevaluacion",
+                    args=[evaluacion.pk],
+                )
             elif evaluacion.estado in pendientes_supervisor:
                 usuario = evaluacion.evaluador
-                url = reverse("evaluaciones:supervisar", args=[evaluacion.pk])
+                url = ruta(
+                    "evaluaciones:supervisar",
+                    f"/evaluaciones/{evaluacion.pk}/supervisar",
+                    args=[evaluacion.pk],
+                )
             elif evaluacion.estado in pendientes_reunion:
                 usuario = evaluacion.evaluador
-                url = reverse("evaluaciones:resultado", args=[evaluacion.pk])
+                url = ruta(
+                    "evaluaciones:resultado",
+                    f"/evaluaciones/{evaluacion.pk}/resultado",
+                    args=[evaluacion.pk],
+                )
             else:
                 usuario = evaluacion.evaluado
-                url = reverse("evaluaciones:resultado", args=[evaluacion.pk])
+                url = ruta(
+                    "evaluaciones:resultado",
+                    f"/evaluaciones/{evaluacion.pk}/resultado",
+                    args=[evaluacion.pk],
+                )
             if usuario is None:
                 continue
             clave = (usuario.pk, evaluacion.ciclo_id)

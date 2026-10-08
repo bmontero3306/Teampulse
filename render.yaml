@@ -3,8 +3,16 @@ services:
     name: teampulse
     runtime: python
     plan: free
-    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput
-    startCommand: rm -f db.sqlite3 db.sqlite3-journal && python manage.py migrate --noinput && python manage.py seed_demo && gunicorn teampulse.wsgi:application
+    buildCommand: >-
+      pip install -r requirements.txt &&
+      curl -fsSL https://nodejs.org/dist/v22.21.0/node-v22.21.0-linux-x64.tar.xz -o /tmp/node.tar.xz &&
+      tar -xJf /tmp/node.tar.xz -C /tmp &&
+      export PATH="/tmp/node-v22.21.0-linux-x64/bin:$PATH" &&
+      corepack enable &&
+      corepack prepare pnpm@10.34.6 --activate &&
+      cd frontend && pnpm install --frozen-lockfile && pnpm build && cd .. &&
+      python manage.py collectstatic --noinput
+    startCommand: rm -f db.sqlite3 db.sqlite3-journal && python manage.py migrate --noinput && python manage.py seed_demo && gunicorn teampulse.wsgi:application --bind 0.0.0.0:$PORT --workers 1
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.8

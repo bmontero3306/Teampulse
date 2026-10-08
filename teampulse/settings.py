@@ -67,6 +67,9 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "corsheaders",
+    "rest_framework",
+    "rest_framework.authtoken",
     "theme",
     # WP0
     "cuentas",
@@ -82,10 +85,13 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "cuentas.middleware.TokenAuthMiddleware",
+    "cuentas.middleware.MustChangePasswordApiMiddleware",
     "empresas.middleware.EmpresaMiddleware",  # WP0
     "cuentas.middleware.MustChangePasswordMiddleware",  # WP2
     "django.contrib.messages.middleware.MessageMiddleware",
@@ -199,3 +205,37 @@ AUTHENTICATION_BACKENDS = [
 # seed_demo, tests de aceptación y ALLOWED_HOSTS desde .env (arriba).
 # Producción / Render: DEBUG=False, SECRET_KEY y hosts vía env.
 # WhiteNoise sirve estáticos detrás de Gunicorn.
+
+# API (DRF + token). La UI es la SPA Angular; /admin/ sigue con sesión.
+FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:4200").rstrip("/")
+CORS_ALLOWED_ORIGINS = _env_list("CORS_ALLOWED_ORIGINS") or [
+    "http://localhost:4200",
+    "http://127.0.0.1:4200",
+]
+CORS_ALLOW_HEADERS = [
+    "accept",
+    "authorization",
+    "content-type",
+    "origin",
+    "x-csrftoken",
+    "x-requested-with",
+    "x-empresa-id",
+]
+
+SPA_ROOT = BASE_DIR / "frontend" / "dist" / "teampulse" / "browser"
+
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.TokenAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+        "app.api.permissions.MustChangePasswordPermission",
+    ],
+    "DEFAULT_PAGINATION_CLASS": "app.api.pagination.PaginacionEstandar",
+    "PAGE_SIZE": 20,
+    "EXCEPTION_HANDLER": "app.api.exceptions.api_exception_handler",
+    "DEFAULT_RENDERER_CLASSES": [
+        "rest_framework.renderers.JSONRenderer",
+    ],
+}

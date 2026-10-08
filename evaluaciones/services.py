@@ -1,8 +1,9 @@
 import hashlib
 
 from django.db import transaction
-from django.urls import reverse
 from django.utils import timezone
+
+from app.rutas import ruta
 
 from auditoria.services import registrar_auditoria
 from cuentas.models import Usuario
@@ -118,6 +119,14 @@ def _usuarios_participantes(ciclo):
     if areas_ids:
         qs = qs.filter(area_id__in=areas_ids)
     return qs
+
+
+def _url_resultado(pk):
+    return ruta(
+        "evaluaciones:resultado",
+        f"/evaluaciones/{pk}/resultado",
+        args=[pk],
+    )
 
 
 def _contexto_ciclo(ciclo, url=""):
@@ -322,7 +331,7 @@ def activar_ciclo(ciclo, usuario, request=None):
         usuario=usuario,
         payload={"estado": ciclo.estado, "sin_evaluador": len(sin_evaluador)},
     )
-    url_mias = reverse("evaluaciones:mias")
+    url_mias = ruta("evaluaciones:mias", "/evaluaciones/mias")
     _notificar_participantes(ciclo, CICLO_ACTIVADO, url=url_mias)
     return ciclo, sin_evaluador
 
@@ -334,7 +343,7 @@ def pausar_ciclo(ciclo, usuario, request=None):
     ciclo.estado = CicloEvaluacion.Estado.PAUSADO
     ciclo.save(update_fields=["estado"])
     registrar_auditoria(request, accion="pausar", instance=ciclo, usuario=usuario)
-    _notificar_participantes(ciclo, CICLO_PAUSADO, url=reverse("evaluaciones:mias"))
+    _notificar_participantes(ciclo, CICLO_PAUSADO, url=ruta("evaluaciones:mias", "/evaluaciones/mias"))
     return ciclo
 
 
@@ -348,7 +357,9 @@ def cancelar_ciclo(ciclo, usuario, request=None):
     ciclo.estado = CicloEvaluacion.Estado.CANCELADO
     ciclo.save(update_fields=["estado"])
     registrar_auditoria(request, accion="cancelar", instance=ciclo, usuario=usuario)
-    _notificar_participantes(ciclo, CICLO_CANCELADO, url=reverse("evaluaciones:mias"))
+    _notificar_participantes(
+        ciclo, CICLO_CANCELADO, url=ruta("evaluaciones:mias", "/evaluaciones/mias")
+    )
     return ciclo
 
 
@@ -375,7 +386,9 @@ def reprogramar_ciclo(ciclo, fecha_inicio, fecha_cierre, usuario, request=None):
         },
     )
     _notificar_participantes(
-        ciclo, CICLO_REPROGRAMADO, url=reverse("evaluaciones:mias")
+        ciclo,
+        CICLO_REPROGRAMADO,
+        url=ruta("evaluaciones:mias", "/evaluaciones/mias"),
     )
     return ciclo
 
@@ -458,7 +471,11 @@ def guardar_autoevaluacion(evaluacion, respuestas, enviar, usuario, request=None
                 "ciclo": evaluacion.ciclo.nombre,
                 "evaluado": evaluacion.evaluado.get_full_name()
                 or evaluacion.evaluado.email,
-                "url": reverse("evaluaciones:supervisar", args=[evaluacion.pk]),
+                "url": ruta(
+                    "evaluaciones:supervisar",
+                    f"/evaluaciones/{evaluacion.pk}/supervisar",
+                    args=[evaluacion.pk],
+                ),
             },
         )
     return evaluacion
@@ -571,7 +588,11 @@ def guardar_eval_supervisor(
                 "ciclo": evaluacion.ciclo.nombre,
                 "evaluado": evaluacion.evaluado.get_full_name()
                 or evaluacion.evaluado.email,
-                "url": reverse("evaluaciones:resultado", args=[evaluacion.pk]),
+                "url": ruta(
+                    "evaluaciones:resultado",
+                    f"/evaluaciones/{evaluacion.pk}/resultado",
+                    args=[evaluacion.pk],
+                ),
                 "siguiente": siguiente,
             },
         )
@@ -628,7 +649,7 @@ def firmar_conformidad(evaluacion, user, ip, observacion=None):
     contexto = {
         "ciclo": evaluacion.ciclo.nombre,
         "evaluado": evaluacion.evaluado.get_full_name() or evaluacion.evaluado.email,
-        "url": reverse("evaluaciones:resultado", args=[evaluacion.pk]),
+        "url": _url_resultado(evaluacion.pk),
     }
     destinatarios = []
     if evaluacion.evaluador_id:
@@ -724,7 +745,7 @@ def registrar_reunion_feedback(
             "ciclo": evaluacion.ciclo.nombre,
             "evaluado": evaluacion.evaluado.get_full_name()
             or evaluacion.evaluado.email,
-            "url": reverse("evaluaciones:resultado", args=[evaluacion.pk]),
+            "url": _url_resultado(evaluacion.pk),
         },
     )
     return evaluacion
@@ -762,7 +783,7 @@ def omitir_reunion_feedback(evaluacion, usuario, request=None):
             "ciclo": evaluacion.ciclo.nombre,
             "evaluado": evaluacion.evaluado.get_full_name()
             or evaluacion.evaluado.email,
-            "url": reverse("evaluaciones:resultado", args=[evaluacion.pk]),
+            "url": _url_resultado(evaluacion.pk),
         },
     )
     return evaluacion
@@ -804,7 +825,7 @@ def reasignar_evaluador(evaluacion, evaluador, usuario, request=None):
             "ciclo": evaluacion.ciclo.nombre,
             "evaluado": evaluacion.evaluado.get_full_name()
             or evaluacion.evaluado.email,
-            "url": reverse("evaluaciones:equipo"),
+            "url": ruta("evaluaciones:equipo", "/evaluaciones/equipo"),
         },
     )
     return evaluacion

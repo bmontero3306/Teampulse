@@ -32,7 +32,7 @@ def items_navegacion(user, empresa=None):
             "etiqueta": "Panel",
             "icono": "layout-dashboard",
             "nombre": "app:dashboard",
-            "fallback": "/dashboard/",
+            "fallback": "/dashboard",
             "mostrar": True,
         },
         {
@@ -40,7 +40,7 @@ def items_navegacion(user, empresa=None):
             "etiqueta": "Empresas",
             "icono": "building-2",
             "nombre": "empresas:lista",
-            "fallback": "/empresas/",
+            "fallback": "/empresas",
             "mostrar": es_superadmin,
         },
         {
@@ -48,7 +48,7 @@ def items_navegacion(user, empresa=None):
             "etiqueta": "Usuarios",
             "icono": "users",
             "nombre": "cuentas:usuarios",
-            "fallback": "/cuentas/usuarios/",
+            "fallback": "/usuarios",
             "mostrar": es_admin,
         },
         {
@@ -56,7 +56,7 @@ def items_navegacion(user, empresa=None):
             "etiqueta": "Organigrama",
             "icono": "network",
             "nombre": "organizacion:organigrama",
-            "fallback": "/organizacion/organigrama/",
+            "fallback": "/organizacion",
             "mostrar": es_admin or es_supervisor,
         },
         {
@@ -64,7 +64,7 @@ def items_navegacion(user, empresa=None):
             "etiqueta": "Plantillas",
             "icono": "clipboard-list",
             "nombre": "evaluaciones:plantillas",
-            "fallback": "/evaluaciones/plantillas/",
+            "fallback": "/evaluaciones/plantillas",
             "mostrar": es_admin or es_supervisor,
         },
         {
@@ -72,7 +72,7 @@ def items_navegacion(user, empresa=None):
             "etiqueta": "Ciclos",
             "icono": "calendar",
             "nombre": "evaluaciones:ciclos",
-            "fallback": "/evaluaciones/ciclos/",
+            "fallback": "/evaluaciones/ciclos",
             "mostrar": es_admin or es_supervisor,
         },
         {
@@ -80,7 +80,7 @@ def items_navegacion(user, empresa=None):
             "etiqueta": "Equipo",
             "icono": "users-round",
             "nombre": "evaluaciones:equipo",
-            "fallback": "/evaluaciones/equipo/",
+            "fallback": "/evaluaciones/equipo",
             "mostrar": es_supervisor,
         },
         {
@@ -88,7 +88,7 @@ def items_navegacion(user, empresa=None):
             "etiqueta": "Mis evaluaciones",
             "icono": "clipboard-check",
             "nombre": "evaluaciones:mias",
-            "fallback": "/evaluaciones/mias/",
+            "fallback": "/evaluaciones/mias",
             "mostrar": es_empleado,
         },
         {
@@ -96,7 +96,7 @@ def items_navegacion(user, empresa=None):
             "etiqueta": "Reportes ISO",
             "icono": "chart-column",
             "nombre": "reportes:iso",
-            "fallback": "/reportes/iso/",
+            "fallback": "/reportes/iso",
             "mostrar": es_admin,
         },
         {
@@ -104,7 +104,7 @@ def items_navegacion(user, empresa=None):
             "etiqueta": "Auditoría",
             "icono": "shield-check",
             "nombre": "auditoria:lista",
-            "fallback": "/auditoria/",
+            "fallback": "/auditoria",
             "mostrar": es_admin,
         },
         {
@@ -112,7 +112,7 @@ def items_navegacion(user, empresa=None):
             "etiqueta": "Notificaciones",
             "icono": "bell",
             "nombre": "notificaciones:lista",
-            "fallback": "/notificaciones/",
+            "fallback": "/notificaciones",
             "mostrar": es_admin or es_supervisor or es_empleado,
         },
         {
@@ -120,7 +120,7 @@ def items_navegacion(user, empresa=None):
             "etiqueta": "Ayuda",
             "icono": "circle-help",
             "nombre": "app:ayuda",
-            "fallback": "/ayuda/",
+            "fallback": "/ayuda",
             "mostrar": True,
         },
         {
@@ -128,7 +128,7 @@ def items_navegacion(user, empresa=None):
             "etiqueta": "Perfil",
             "icono": "circle-user",
             "nombre": "cuentas:perfil",
-            "fallback": "/cuentas/perfil/",
+            "fallback": "/perfil",
             "mostrar": True,
         },
     ]
