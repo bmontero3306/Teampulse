@@ -1,12 +1,24 @@
 import { Component, inject, signal } from '@angular/core';
-import { FormControl, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormControl, ReactiveFormsModule } from '@angular/forms';
+import { Title } from '@angular/platform-browser';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import { AuthService } from '../../core/auth.service';
-import { AlertComponent } from '../../shared/alert.component';
-import { ButtonComponent } from '../../shared/button.component';
-import { mensajeError } from '../../shared/errores';
-import { InputTextComponent } from '../../shared/input-text.component';
+import {
+  AYUDA_CLAVE_NUEVA,
+  AYUDA_CLAVE_REPETIR,
+  CampoCuentaComponent,
+  INPUT_CSS,
+  MSG_EMAIL,
+  MSG_OBLIGATORIO,
+  MensajesCuentaComponent,
+  PublicoCuentaComponent,
+  correoValido,
+  enlaceInvalido,
+  erroresHttp,
+  validarParClaves,
+  type MensajeCuenta,
+} from './ui-cuenta';
 
 @Component({
   selector: 'app-home',
@@ -28,37 +40,84 @@ export class HomePage {}
 
 @Component({
   selector: 'app-login',
-  imports: [FormsModule, ReactiveFormsModule, RouterLink, InputTextComponent, ButtonComponent, AlertComponent],
+  imports: [ReactiveFormsModule, RouterLink, PublicoCuentaComponent, CampoCuentaComponent, MensajesCuentaComponent],
   template: `
-    <main class="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6">
-      <h1 class="text-2xl font-semibold text-slate-900">Ingresar</h1>
-      <form class="mt-6 space-y-4" (ngSubmit)="enviar()">
-        <app-input-text label="Correo electrónico" type="email" autocomplete="username" [required]="true" [control]="email" />
-        <app-input-text label="Contraseña" type="password" autocomplete="current-password" [required]="true" [control]="password" />
-        @if (error()) { <p class="text-sm text-rose-600">{{ error() }}</p> }
-        <app-button type="submit" label="Entrar" [disabled]="cargando()" />
-      </form>
-      <a routerLink="/recuperar" class="mt-4 text-sm text-sky-700">Olvidé mi clave</a>
-    </main>
-    <app-alert />
+    <app-publico-cuenta>
+      <a nav routerLink="/" class="hover:text-slate-700">Inicio</a>
+      <section class="mx-auto flex min-h-[calc(100vh-4rem)] max-w-md flex-col justify-center px-6 py-10">
+        <h1 class="text-2xl font-semibold text-slate-900">Iniciar sesión</h1>
+        <p class="mt-2 text-sm text-slate-600">Ingresá con tu correo electrónico y contraseña.</p>
+
+        <form class="mt-6 space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm" (submit)="$event.preventDefault(); enviar()">
+          <app-mensajes-cuenta [mensajes]="mensajes()" [general]="general()" />
+          <app-campo-cuenta id="id_username" label="Correo electrónico" [required]="true" [error]="error('username')">
+            <input
+              id="id_username"
+              name="username"
+              type="email"
+              autocomplete="username"
+              autofocus
+              placeholder="tu@empresa.com"
+              [formControl]="email"
+              [class]="inputCss"
+            />
+          </app-campo-cuenta>
+          <app-campo-cuenta id="id_password" label="Contraseña" [required]="true" [error]="error('password')">
+            <input
+              id="id_password"
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              placeholder="••••••••"
+              [formControl]="password"
+              [class]="inputCss"
+            />
+          </app-campo-cuenta>
+          <button type="submit" class="w-full rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-700">
+            Ingresar
+          </button>
+          <p class="text-center text-sm">
+            <a routerLink="/recuperar" class="font-medium text-sky-700 hover:text-sky-800">Olvidé mi clave</a>
+          </p>
+        </form>
+      </section>
+    </app-publico-cuenta>
   `,
 })
 export class LoginPage {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
-  email = new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.email] });
-  password = new FormControl('', { nonNullable: true, validators: [Validators.required] });
-  error = signal('');
-  cargando = signal(false);
+  readonly inputCss = INPUT_CSS;
+  email = new FormControl('', { nonNullable: true });
+  password = new FormControl('', { nonNullable: true });
+  errores = signal<Record<string, string>>({});
+  general = signal('');
+  mensajes = signal<MensajeCuenta[]>([]);
+
+  constructor() {
+    inject(Title).setTitle('Iniciar sesión · TeamPulse');
+    const aviso = (history.state as { aviso?: string } | null)?.aviso;
+    if (aviso) {
+      this.mensajes.set([{ tipo: 'success', texto: aviso }]);
+      history.replaceState({}, '');
+    }
+  }
+
+  error(campo: string): string {
+    return this.errores()[campo] ?? '';
+  }
 
   enviar(): void {
-    if (this.email.invalid || this.password.invalid) {
-      this.email.markAllAsTouched();
-      this.password.markAllAsTouched();
-      return;
-    }
-    this.cargando.set(true);
-    this.auth.login(this.email.value, this.password.value).subscribe({
+    const errores: Record<string, string> = {};
+    const correo = this.email.value.trim();
+    if (!correo) errores['username'] = MSG_OBLIGATORIO;
+    else if (!correoValido(correo)) errores['username'] = MSG_EMAIL;
+    if (!this.password.value) errores['password'] = MSG_OBLIGATORIO;
+    this.errores.set(errores);
+    this.general.set('');
+    if (Object.keys(errores).length) return;
+
+    this.auth.login(correo, this.password.value).subscribe({
       next: (sesion) => {
         const destino = sesion.debe_cambiar_clave || sesion.usuario.must_change_password
           ? '/clave'
@@ -68,8 +127,9 @@ export class LoginPage {
         this.router.navigate([destino]);
       },
       error: (err) => {
-        this.error.set(mensajeError(err));
-        this.cargando.set(false);
+        const parsed = erroresHttp(err);
+        this.general.set(parsed.general);
+        this.errores.set(parsed.campos);
       },
     });
   }
@@ -77,126 +137,389 @@ export class LoginPage {
 
 @Component({
   selector: 'app-recuperar',
-  imports: [FormsModule, ReactiveFormsModule, RouterLink, InputTextComponent, ButtonComponent],
+  imports: [ReactiveFormsModule, RouterLink, PublicoCuentaComponent, CampoCuentaComponent, MensajesCuentaComponent],
   template: `
-    <main class="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6">
-      <h1 class="text-2xl font-semibold">Recuperar contraseña</h1>
+    <app-publico-cuenta>
+      <a nav routerLink="/login" class="font-medium text-sky-700 hover:text-sky-800">Iniciar sesión</a>
       @if (enviado()) {
-        <p class="mt-4 text-sm text-slate-600">{{ mensaje() }}</p>
+        <section class="mx-auto flex min-h-[calc(100vh-4rem)] max-w-md flex-col justify-center px-6 py-10">
+          <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h1 class="text-2xl font-semibold text-slate-900">Revisá tu correo</h1>
+            <p class="mt-3 text-sm text-slate-600">
+              Si el correo está asociado a una cuenta activa, vas a recibir un enlace para restablecer la contraseña.
+              Si no llega, revisá la carpeta de correo no deseado.
+            </p>
+            <a routerLink="/login" class="mt-6 inline-flex text-sm font-medium text-sky-700 hover:text-sky-800">
+              Volver al inicio de sesión
+            </a>
+          </div>
+        </section>
       } @else {
-        <form class="mt-6 space-y-4" (ngSubmit)="enviar()">
-          <app-input-text label="Correo electrónico" type="email" [required]="true" [control]="email" />
-          <app-button type="submit" label="Enviar enlace" />
-        </form>
+        <section class="mx-auto flex min-h-[calc(100vh-4rem)] max-w-md flex-col justify-center px-6 py-10">
+          <h1 class="text-2xl font-semibold text-slate-900">Recuperar contraseña</h1>
+          <p class="mt-2 text-sm text-slate-600">
+            Ingresá tu correo y te enviaremos un enlace para elegir una nueva clave.
+          </p>
+          <form class="mt-6 space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm" (submit)="$event.preventDefault(); enviar()">
+            <app-mensajes-cuenta [general]="general()" />
+            <app-campo-cuenta id="id_email" label="Correo electrónico" [required]="true" [error]="errorEmail()">
+              <input
+                id="id_email"
+                name="email"
+                type="email"
+                autocomplete="email"
+                placeholder="tu@empresa.com"
+                [formControl]="email"
+                [class]="inputCss"
+              />
+            </app-campo-cuenta>
+            <button type="submit" class="w-full rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-700">
+              Enviar enlace
+            </button>
+            <p class="text-center text-sm">
+              <a routerLink="/login" class="font-medium text-sky-700 hover:text-sky-800">Volver al inicio de sesión</a>
+            </p>
+          </form>
+        </section>
       }
-      <a routerLink="/login" class="mt-4 text-sm text-sky-700">Volver al ingreso</a>
-    </main>
+    </app-publico-cuenta>
   `,
 })
 export class RecuperarPage {
   private readonly auth = inject(AuthService);
-  email = new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.email] });
+  private readonly title = inject(Title);
+  readonly inputCss = INPUT_CSS;
+  email = new FormControl('', { nonNullable: true });
   enviado = signal(false);
-  mensaje = signal('');
+  errorEmail = signal('');
+  general = signal('');
+
+  constructor() {
+    this.title.setTitle('Recuperar contraseña · TeamPulse');
+  }
 
   enviar(): void {
-    this.auth.solicitarReset(this.email.value).subscribe((resp) => {
-      this.mensaje.set(resp.detail);
-      this.enviado.set(true);
+    const correo = this.email.value.trim();
+    if (!correo) this.errorEmail.set(MSG_OBLIGATORIO);
+    else if (!correoValido(correo)) this.errorEmail.set(MSG_EMAIL);
+    else this.errorEmail.set('');
+    this.general.set('');
+    if (this.errorEmail()) return;
+
+    this.auth.solicitarReset(correo).subscribe({
+      next: () => {
+        this.enviado.set(true);
+        this.title.setTitle('Revisá tu correo · TeamPulse');
+      },
+      error: (err) => {
+        const parsed = erroresHttp(err);
+        this.errorEmail.set(parsed.campos['email'] ?? '');
+        this.general.set(parsed.general);
+      },
     });
   }
 }
 
 @Component({
   selector: 'app-reset-confirm',
-  imports: [FormsModule, ReactiveFormsModule, RouterLink, InputTextComponent, ButtonComponent],
+  imports: [ReactiveFormsModule, RouterLink, PublicoCuentaComponent, CampoCuentaComponent, MensajesCuentaComponent],
   template: `
-    <main class="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6">
-      <h1 class="text-2xl font-semibold">Nueva contraseña</h1>
-      @if (listo()) {
-        <p class="mt-4 text-sm text-slate-600">{{ mensaje() }}</p>
-        <a routerLink="/login" class="mt-4 text-sm text-sky-700">Ingresar</a>
-      } @else {
-        <form class="mt-6 space-y-4" (ngSubmit)="enviar()">
-          <app-input-text label="Nueva contraseña" type="password" [required]="true" [control]="password" />
-          @if (error()) { <p class="text-sm text-rose-600">{{ error() }}</p> }
-          <app-button type="submit" label="Guardar" />
-        </form>
-      }
-    </main>
+    <app-publico-cuenta>
+      <a nav routerLink="/login" class="font-medium text-sky-700 hover:text-sky-800">Iniciar sesión</a>
+      <section class="mx-auto flex min-h-[calc(100vh-4rem)] max-w-md flex-col justify-center px-6 py-10">
+        <h1 class="text-2xl font-semibold text-slate-900">Elegí una nueva contraseña</h1>
+        @if (enlaceValido()) {
+          <form class="mt-6 space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm" (submit)="$event.preventDefault(); enviar()">
+            <app-mensajes-cuenta [general]="general()" />
+            <app-campo-cuenta
+              id="id_new_password1"
+              label="Contraseña nueva"
+              [required]="true"
+              [help]="ayudaNueva"
+              [error]="error('new_password1')"
+            >
+              <input
+                id="id_new_password1"
+                name="new_password1"
+                type="password"
+                autocomplete="new-password"
+                [formControl]="password"
+                [class]="inputCss"
+              />
+            </app-campo-cuenta>
+            <app-campo-cuenta
+              id="id_new_password2"
+              label="Confirmación de contraseña nueva"
+              [required]="true"
+              [help]="ayudaRepetir"
+              [error]="error('new_password2')"
+            >
+              <input
+                id="id_new_password2"
+                name="new_password2"
+                type="password"
+                autocomplete="new-password"
+                [formControl]="confirmacion"
+                [class]="inputCss"
+              />
+            </app-campo-cuenta>
+            <button type="submit" class="w-full rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-700">
+              Guardar contraseña
+            </button>
+          </form>
+        } @else {
+          <div class="mt-6 rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-800">
+            <p>El enlace no es válido o ya venció. Pedí uno nuevo para recuperar tu clave.</p>
+            <a routerLink="/recuperar" class="mt-4 inline-flex font-medium text-sky-700 hover:text-sky-800">
+              Recuperar contraseña
+            </a>
+          </div>
+        }
+      </section>
+    </app-publico-cuenta>
   `,
 })
 export class ResetConfirmPage {
   private readonly auth = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
-  password = new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.minLength(8)] });
-  error = signal('');
-  listo = signal(false);
-  mensaje = signal('');
+  private readonly router = inject(Router);
+  readonly inputCss = INPUT_CSS;
+  readonly ayudaNueva = AYUDA_CLAVE_NUEVA;
+  readonly ayudaRepetir = AYUDA_CLAVE_REPETIR;
+  password = new FormControl('', { nonNullable: true });
+  confirmacion = new FormControl('', { nonNullable: true });
+  errores = signal<Record<string, string>>({});
+  general = signal('');
+  enlaceValido = signal(true);
+
+  constructor() {
+    inject(Title).setTitle('Nueva contraseña · TeamPulse');
+    const uid = this.route.snapshot.paramMap.get('uid');
+    const token = this.route.snapshot.paramMap.get('token');
+    if (!uid || !token) this.enlaceValido.set(false);
+  }
+
+  error(campo: string): string {
+    return this.errores()[campo] ?? '';
+  }
 
   enviar(): void {
+    const errores = validarParClaves(this.password.value, this.confirmacion.value);
+    this.errores.set(errores);
+    this.general.set('');
+    if (Object.keys(errores).length) return;
+
     const uid = this.route.snapshot.paramMap.get('uid') ?? '';
     const token = this.route.snapshot.paramMap.get('token') ?? '';
     this.auth.confirmarReset(uid, token, this.password.value).subscribe({
       next: (resp) => {
-        this.mensaje.set(resp.detail);
-        this.listo.set(true);
+        this.router.navigate(['/login'], { state: { aviso: resp.detail } });
       },
-      error: (err) => this.error.set(mensajeError(err)),
+      error: (err) => {
+        const parsed = erroresHttp(err);
+        if (enlaceInvalido(parsed.general)) {
+          this.enlaceValido.set(false);
+          return;
+        }
+        const campos = { ...parsed.campos };
+        if (campos['new_password']) {
+          campos['new_password2'] = campos['new_password'];
+          delete campos['new_password'];
+        }
+        this.errores.set(campos);
+        this.general.set(parsed.general);
+      },
     });
   }
 }
 
 @Component({
   selector: 'app-clave',
-  imports: [FormsModule, ReactiveFormsModule, InputTextComponent, ButtonComponent],
+  imports: [ReactiveFormsModule, RouterLink, CampoCuentaComponent, MensajesCuentaComponent],
   template: `
-    <main class="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6">
-      <h1 class="text-2xl font-semibold">Cambiar contraseña</h1>
-      <p class="mt-2 text-sm text-slate-600">Tenés que definir una clave nueva antes de seguir.</p>
-      <form class="mt-6 space-y-4" (ngSubmit)="enviar()">
-        <app-input-text label="Contraseña actual" type="password" [control]="actual" />
-        <app-input-text label="Nueva contraseña" type="password" [control]="nueva" />
-        @if (error()) { <p class="text-sm text-rose-600">{{ error() }}</p> }
-        <app-button type="submit" label="Actualizar" />
+    <section class="mx-auto max-w-lg">
+      <h1 class="text-2xl font-semibold tracking-tight text-slate-900">Cambiar contraseña</h1>
+      @if (debeCambiar()) {
+        <p class="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Debés cambiar tu contraseña antes de continuar.
+        </p>
+      }
+          <form class="mt-6 space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm" (submit)="$event.preventDefault(); enviar()">
+        <app-mensajes-cuenta [general]="general()" />
+        <app-campo-cuenta id="id_old_password" label="Contraseña antigua" [required]="true" [error]="error('old_password')">
+          <input
+            id="id_old_password"
+            name="old_password"
+            type="password"
+            autocomplete="current-password"
+            autofocus
+            [formControl]="actual"
+            [class]="inputCss"
+          />
+        </app-campo-cuenta>
+        <app-campo-cuenta
+          id="id_new_password1"
+          label="Contraseña nueva"
+          [required]="true"
+          [help]="ayudaNueva"
+          [error]="error('new_password1')"
+        >
+          <input
+            id="id_new_password1"
+            name="new_password1"
+            type="password"
+            autocomplete="new-password"
+            [formControl]="nueva"
+            [class]="inputCss"
+          />
+        </app-campo-cuenta>
+        <app-campo-cuenta
+          id="id_new_password2"
+          label="Confirmación de contraseña nueva"
+          [required]="true"
+          [help]="ayudaRepetir"
+          [error]="error('new_password2')"
+        >
+          <input
+            id="id_new_password2"
+            name="new_password2"
+            type="password"
+            autocomplete="new-password"
+            [formControl]="confirmacion"
+            [class]="inputCss"
+          />
+        </app-campo-cuenta>
+        <div class="flex items-center gap-3">
+          <button type="submit" class="rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700">
+            Guardar
+          </button>
+          @if (!debeCambiar()) {
+            <a routerLink="/perfil" class="text-sm font-medium text-slate-600 hover:text-slate-900">Cancelar</a>
+          }
+        </div>
       </form>
-    </main>
+    </section>
   `,
 })
 export class ClavePage {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
-  actual = new FormControl('', { nonNullable: true, validators: [Validators.required] });
-  nueva = new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.minLength(8)] });
-  error = signal('');
+  readonly inputCss = INPUT_CSS;
+  readonly ayudaNueva = AYUDA_CLAVE_NUEVA;
+  readonly ayudaRepetir = AYUDA_CLAVE_REPETIR;
+  actual = new FormControl('', { nonNullable: true });
+  nueva = new FormControl('', { nonNullable: true });
+  confirmacion = new FormControl('', { nonNullable: true });
+  errores = signal<Record<string, string>>({});
+  general = signal('');
+
+  constructor() {
+    inject(Title).setTitle('Cambiar contraseña · TeamPulse');
+  }
+
+  debeCambiar(): boolean {
+    const sesion = this.auth.sesion();
+    if (!sesion) return true;
+    return sesion.debe_cambiar_clave || sesion.usuario.must_change_password;
+  }
+
+  error(campo: string): string {
+    return this.errores()[campo] ?? '';
+  }
 
   enviar(): void {
+    const errores = validarParClaves(this.nueva.value, this.confirmacion.value);
+    if (!this.actual.value) errores['old_password'] = MSG_OBLIGATORIO;
+    this.errores.set(errores);
+    this.general.set('');
+    if (Object.keys(errores).length) return;
+
     this.auth.cambiarClave(this.actual.value, this.nueva.value).subscribe({
       next: (sesion) => {
         const destino = sesion.usuario.rol === 'superadmin' ? '/empresas' : '/dashboard';
         this.router.navigate([destino]);
       },
-      error: (err) => this.error.set(mensajeError(err)),
+      error: (err) => {
+        const parsed = erroresHttp(err);
+        const campos = { ...parsed.campos };
+        if (campos['new_password']) {
+          campos['new_password2'] = campos['new_password'];
+          delete campos['new_password'];
+        }
+        this.errores.set(campos);
+        this.general.set(parsed.general);
+      },
     });
   }
 }
 
 @Component({
   selector: 'app-perfil',
-  template: `
-    <h1 class="text-2xl font-semibold">Perfil</h1>
-    @if (auth.sesion(); as sesion) {
-      <dl class="mt-6 grid max-w-lg gap-3 text-sm">
-        <div><dt class="text-slate-500">Nombre</dt><dd>{{ sesion.usuario.nombre }}</dd></div>
-        <div><dt class="text-slate-500">Correo</dt><dd>{{ sesion.usuario.email }}</dd></div>
-        <div><dt class="text-slate-500">Rol</dt><dd>{{ sesion.usuario.rol_display }}</dd></div>
-        <div><dt class="text-slate-500">Empresa</dt><dd>{{ sesion.empresa_actual?.nombre || '—' }}</dd></div>
-      </dl>
-      <a routerLink="/clave" class="mt-6 inline-block text-sm text-sky-700">Cambiar contraseña</a>
-    }
-  `,
   imports: [RouterLink],
+  template: `
+    <section class="mx-auto max-w-2xl">
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 class="text-2xl font-semibold tracking-tight text-slate-900">Mi perfil</h1>
+          <p class="mt-1 text-sm text-slate-600">Datos de solo lectura. Para cambiar la clave usá el botón.</p>
+        </div>
+        <a routerLink="/clave" class="rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700">
+          Cambiar clave
+        </a>
+      </div>
+
+      @if (auth.sesion(); as sesion) {
+        <dl class="mt-6 divide-y divide-slate-200 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div class="grid gap-1 px-6 py-4 sm:grid-cols-3 sm:gap-4">
+            <dt class="text-sm font-medium text-slate-500">Nombre</dt>
+            <dd class="text-sm text-slate-900 sm:col-span-2">{{ nombre(sesion.usuario.first_name, sesion.usuario.last_name) }}</dd>
+          </div>
+          <div class="grid gap-1 px-6 py-4 sm:grid-cols-3 sm:gap-4">
+            <dt class="text-sm font-medium text-slate-500">Correo</dt>
+            <dd class="text-sm text-slate-900 sm:col-span-2">{{ sesion.usuario.email }}</dd>
+          </div>
+          <div class="grid gap-1 px-6 py-4 sm:grid-cols-3 sm:gap-4">
+            <dt class="text-sm font-medium text-slate-500">DNI</dt>
+            <dd class="text-sm text-slate-900 sm:col-span-2">{{ texto(sesion.usuario.dni) }}</dd>
+          </div>
+          <div class="grid gap-1 px-6 py-4 sm:grid-cols-3 sm:gap-4">
+            <dt class="text-sm font-medium text-slate-500">Rol</dt>
+            <dd class="text-sm capitalize text-slate-900 sm:col-span-2">{{ sesion.usuario.rol_display }}</dd>
+          </div>
+          <div class="grid gap-1 px-6 py-4 sm:grid-cols-3 sm:gap-4">
+            <dt class="text-sm font-medium text-slate-500">Empresa</dt>
+            <dd class="text-sm text-slate-900 sm:col-span-2">{{ texto(sesion.usuario.empresa_nombre) }}</dd>
+          </div>
+          <div class="grid gap-1 px-6 py-4 sm:grid-cols-3 sm:gap-4">
+            <dt class="text-sm font-medium text-slate-500">Área</dt>
+            <dd class="text-sm text-slate-900 sm:col-span-2">{{ texto(sesion.usuario.area_nombre) }}</dd>
+          </div>
+          <div class="grid gap-1 px-6 py-4 sm:grid-cols-3 sm:gap-4">
+            <dt class="text-sm font-medium text-slate-500">Puesto</dt>
+            <dd class="text-sm text-slate-900 sm:col-span-2">{{ texto(sesion.usuario.puesto_nombre) }}</dd>
+          </div>
+          <div class="grid gap-1 px-6 py-4 sm:grid-cols-3 sm:gap-4">
+            <dt class="text-sm font-medium text-slate-500">Supervisor</dt>
+            <dd class="text-sm text-slate-900 sm:col-span-2">{{ texto(sesion.usuario.supervisor_nombre) }}</dd>
+          </div>
+        </dl>
+      }
+    </section>
+  `,
 })
 export class PerfilPage {
   readonly auth = inject(AuthService);
+
+  constructor() {
+    inject(Title).setTitle('Mi perfil · TeamPulse');
+  }
+
+  nombre(first: string, last: string): string {
+    return this.texto(`${first} ${last}`);
+  }
+
+  texto(valor: string | null | undefined): string {
+    const limpio = (valor ?? '').trim();
+    return limpio || '—';
+  }
 }

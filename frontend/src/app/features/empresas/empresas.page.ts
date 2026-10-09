@@ -1,154 +1,312 @@
-import { HttpClient } from '@angular/common/http';
-import { Component, inject, signal } from '@angular/core';
-import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Component, computed, effect, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Title } from '@angular/platform-browser';
+import { ActivatedRoute, ParamMap, Router } from '@angular/router';
+import { combineLatest } from 'rxjs';
 
-import { API } from '../../core/api';
-import { Pagina } from '../../core/models';
+import { AuthService } from '../../core/auth.service';
 import { TenantService } from '../../core/tenant.service';
 import { AlertService } from '../../shared/alert.service';
-import { BadgeComponent } from '../../shared/badge.component';
-import { ButtonComponent } from '../../shared/button.component';
 import { mensajeError } from '../../shared/errores';
-import { InputTextComponent } from '../../shared/input-text.component';
-import { ModalComponent } from '../../shared/modal.component';
+import { EmpresaSuspenderComponent } from './confirmar-suspender.component';
+import { EmpresaDetalleComponent } from './detalle.component';
+import { EmpresaApi } from './empresa.api';
+import {
+  ERRORES_VACIOS,
+  Empresa,
+  EmpresaPayload,
+  ErroresEmpresa,
+  VistaEmpresa,
+  erroresEmpresa,
+} from './empresa.model';
+import { EmpresaFormComponent } from './form.component';
+import { EmpresaListaComponent } from './lista.component';
 
-interface Empresa {
-  id: number;
-  nombre: string;
-  razon_social: string;
-  cuit: string;
-  email_contacto: string;
-  telefono: string;
-  direccion: string;
-  estado: string;
-}
+export { SelectorEmpresaComponent } from './selector-empresa.component';
 
 @Component({
   selector: 'app-empresas',
-  imports: [ReactiveFormsModule, ButtonComponent, InputTextComponent, BadgeComponent, ModalComponent],
+  imports: [EmpresaListaComponent, EmpresaFormComponent, EmpresaDetalleComponent, EmpresaSuspenderComponent],
   template: `
-    <div class="flex items-center justify-between">
-      <h1 class="text-2xl font-semibold">Empresas</h1>
-      <app-button label="Nueva empresa" (buttonClick)="nueva()" />
-    </div>
-    <ul class="mt-6 divide-y rounded-xl border border-slate-200 bg-white">
-      @for (empresa of empresas(); track empresa.id) {
-        <li class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
-          <div>
-            <p class="font-medium">{{ empresa.nombre }}</p>
-            <p class="text-slate-500">{{ empresa.cuit }} · {{ empresa.email_contacto }}</p>
-          </div>
-          <div class="flex items-center gap-2">
-            <app-badge [label]="empresa.estado" [tono]="empresa.estado === 'activa' ? 'ok' : 'warn'" />
-            <button type="button" class="text-sky-700" (click)="usar(empresa)">Usar</button>
-            <button type="button" class="text-slate-600" (click)="editar(empresa)">Editar</button>
-            @if (empresa.estado === 'activa') {
-              <button type="button" class="text-rose-700" (click)="pedir('suspender', empresa)">Suspender</button>
-            } @else {
-              <button type="button" class="text-emerald-700" (click)="pedir('activar', empresa)">Activar</button>
-            }
-          </div>
-        </li>
+    @switch (vista()) {
+      @case ('nueva') {
+        <app-empresa-form
+          titulo="Nueva empresa"
+          [esFicha]="false"
+          [empresa]="null"
+          [errores]="errores()"
+          (guardar)="guardar($event)"
+        />
       }
-    </ul>
-
-    @if (formulario()) {
-      <form class="mt-6 max-w-xl space-y-3 rounded-xl border border-slate-200 bg-white p-4" [formGroup]="form" (ngSubmit)="guardar()">
-        <h2 class="font-semibold">{{ editando() ? 'Editar empresa' : 'Nueva empresa' }}</h2>
-        <app-input-text label="Nombre" [control]="ctrl('nombre')" />
-        <app-input-text label="Razón social" [control]="ctrl('razon_social')" />
-        <app-input-text label="CUIT" [control]="ctrl('cuit')" help="11 dígitos, con o sin guiones." />
-        <app-input-text label="Email" type="email" [control]="ctrl('email_contacto')" />
-        <app-input-text label="Teléfono" [control]="ctrl('telefono')" />
-        <app-input-text label="Dirección" [control]="ctrl('direccion')" />
-        <app-button type="submit" label="Guardar" />
-      </form>
+      @case ('editar') {
+        @if (empresa(); as actual) {
+          <app-empresa-form
+            titulo="Editar empresa"
+            [esFicha]="esFicha()"
+            [empresa]="actual"
+            [errores]="errores()"
+            (guardar)="guardar($event)"
+          />
+        }
+      }
+      @case ('detalle') {
+        @if (empresa(); as actual) {
+          <app-empresa-detalle [empresa]="actual" [rol]="rol()" (activar)="activar($event)" />
+        }
+      }
+      @case ('suspender') {
+        @if (empresa(); as actual) {
+          <app-empresa-suspender [empresa]="actual" (confirmar)="confirmarSuspension()" />
+        }
+      }
+      @default {
+        <app-empresa-lista
+          [empresas]="empresas()"
+          [estadoFiltro]="estadoFiltro()"
+          [cargando]="cargando()"
+          (filtrar)="filtrar($event)"
+          (activar)="activar($event)"
+          (usar)="usar($event)"
+        />
+      }
     }
-
-    <app-modal [open]="!!accion()" [title]="accion() === 'suspender' ? 'Suspender empresa' : 'Activar empresa'" (confirm)="confirmar()" (cancel)="accion.set(null)">
-      {{ objetivo()?.nombre }}
-    </app-modal>
   `,
 })
 export class EmpresasPage {
-  private readonly http = inject(HttpClient);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+  private readonly api = inject(EmpresaApi);
   private readonly alertas = inject(AlertService);
+  private readonly auth = inject(AuthService);
   private readonly tenant = inject(TenantService);
+  private readonly title = inject(Title);
+  private token = 0;
+  private ocupado = false;
+
+  vista = signal<VistaEmpresa>('lista');
   empresas = signal<Empresa[]>([]);
-  formulario = signal(false);
-  editando = signal<number | null>(null);
-  accion = signal<'suspender' | 'activar' | null>(null);
-  objetivo = signal<Empresa | null>(null);
-  form = new FormGroup({
-    nombre: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
-    razon_social: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
-    cuit: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
-    email_contacto: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.email] }),
-    telefono: new FormControl('', { nonNullable: true }),
-    direccion: new FormControl('', { nonNullable: true }),
-    estado: new FormControl('activa', { nonNullable: true }),
-  });
+  empresa = signal<Empresa | null>(null);
+  estadoFiltro = signal('');
+  cargando = signal(true);
+  errores = signal<ErroresEmpresa>(ERRORES_VACIOS);
+  readonly rol = computed(() => this.auth.sesion()?.usuario.rol ?? '');
+  readonly esFicha = computed(() => this.vista() === 'editar' && this.rol() === 'admin_rrhh');
 
   constructor() {
-    this.cargar();
+    effect(() => {
+      const vista = this.vista();
+      const empresa = this.empresa();
+      let pagina = 'Empresas';
+      if (vista === 'nueva') {
+        pagina = 'Nueva empresa';
+      } else if (vista === 'editar') {
+        pagina = 'Editar empresa';
+      } else if (vista === 'detalle') {
+        pagina = empresa?.nombre || 'Empresas';
+      } else if (vista === 'suspender') {
+        pagina = empresa ? `Suspender ${empresa.nombre}` : 'Suspender empresa';
+      }
+      this.title.setTitle(`${pagina} · TeamPulse`);
+    });
+
+    combineLatest([this.route.paramMap, this.route.queryParamMap])
+      .pipe(takeUntilDestroyed())
+      .subscribe(([, params]) => this.aplicar(params));
   }
 
-  ctrl(nombre: keyof typeof this.form.controls): FormControl {
-    return this.form.controls[nombre];
+  filtrar(estado: string): void {
+    void this.router.navigate(['/empresas'], {
+      queryParams: estado ? { estado } : {},
+    });
   }
 
-  cargar(): void {
-    this.http.get<Pagina<Empresa>>(`${API}/empresas/`).subscribe((pagina) => this.empresas.set(pagina.results));
-  }
-
-  nueva(): void {
-    this.editando.set(null);
-    this.form.reset({ estado: 'activa' });
-    this.formulario.set(true);
-  }
-
-  editar(empresa: Empresa): void {
-    this.editando.set(empresa.id);
-    this.form.patchValue(empresa);
-    this.formulario.set(true);
-  }
-
-  guardar(): void {
-    const id = this.editando();
-    const req = id
-      ? this.http.patch(`${API}/empresas/${id}/`, this.form.getRawValue())
-      : this.http.post(`${API}/empresas/`, this.form.getRawValue());
+  guardar(valor: EmpresaPayload): void {
+    if (this.ocupado) {
+      return;
+    }
+    const editando = this.vista() === 'editar' ? this.empresa() : null;
+    const cuerpo: Partial<EmpresaPayload> = this.esFicha()
+      ? {
+          nombre: valor.nombre,
+          email_contacto: valor.email_contacto,
+          telefono: valor.telefono,
+          direccion: valor.direccion,
+        }
+      : valor;
+    this.ocupado = true;
+    const req = editando ? this.api.actualizar(editando.id, cuerpo) : this.api.crear(cuerpo);
     req.subscribe({
-      next: () => {
-        this.alertas.success('Empresa guardada.');
-        this.formulario.set(false);
-        this.cargar();
+      next: (empresa) => {
+        this.ocupado = false;
+        this.alertas.success(
+          editando ? 'La empresa se actualizó correctamente.' : 'La empresa se creó correctamente.',
+        );
+        void this.router.navigate(['/empresas', empresa.id]);
       },
-      error: (err) => this.alertas.error(mensajeError(err)),
+      error: (err) => {
+        this.ocupado = false;
+        this.errores.set(erroresEmpresa(err));
+      },
+    });
+  }
+
+  activar(empresa: Empresa): void {
+    if (this.ocupado) {
+      return;
+    }
+    this.ocupado = true;
+    this.api.activar(empresa.id).subscribe({
+      next: (actualizada) => {
+        this.ocupado = false;
+        this.alertas.success('La empresa se activó correctamente.');
+        if (this.vista() === 'detalle' && this.empresa()?.id === actualizada.id) {
+          this.empresa.set({
+            ...actualizada,
+            cantidad_usuarios: this.empresa()?.cantidad_usuarios,
+          });
+          return;
+        }
+        void this.router.navigate(['/empresas', actualizada.id]);
+      },
+      error: (err) => {
+        this.ocupado = false;
+        this.alertas.error(mensajeError(err));
+      },
+    });
+  }
+
+  confirmarSuspension(): void {
+    const empresa = this.empresa();
+    if (!empresa || this.ocupado) {
+      return;
+    }
+    this.ocupado = true;
+    this.api.suspender(empresa.id).subscribe({
+      next: () => {
+        this.ocupado = false;
+        this.alertas.success(
+          'La empresa fue suspendida. Los datos se conservan; sus usuarios no podrán iniciar sesión.',
+        );
+        void this.router.navigate(['/empresas', empresa.id]);
+      },
+      error: (err) => {
+        this.ocupado = false;
+        this.alertas.error(mensajeError(err));
+      },
     });
   }
 
   usar(empresa: Empresa): void {
     this.tenant.setEmpresa(empresa.id);
-    this.alertas.success(`Trabajando en ${empresa.nombre}.`);
-  }
-
-  pedir(accion: 'suspender' | 'activar', empresa: Empresa): void {
-    this.accion.set(accion);
-    this.objetivo.set(empresa);
-  }
-
-  confirmar(): void {
-    const empresa = this.objetivo();
-    const accion = this.accion();
-    if (!empresa || !accion) return;
-    this.http.post(`${API}/empresas/${empresa.id}/${accion}/`, {}).subscribe({
-      next: () => {
-        this.alertas.success('Estado actualizado.');
-        this.accion.set(null);
-        this.cargar();
-      },
-      error: (err) => this.alertas.error(mensajeError(err)),
+    this.auth.loadMe().subscribe(() => {
+      this.alertas.success(`Contexto cambiado a ${empresa.nombre}.`);
     });
+  }
+
+  private aplicar(params: ParamMap): void {
+    if (this.redirigirQuery(params)) {
+      return;
+    }
+    const token = ++this.token;
+    const { vista, id } = this.leerRuta();
+    const estado = params.get('estado') ?? '';
+    this.errores.set(ERRORES_VACIOS);
+    this.vista.set(vista);
+    this.estadoFiltro.set(vista === 'lista' ? estado : '');
+
+    if (vista === 'lista') {
+      this.empresa.set(null);
+      this.empresas.set([]);
+      this.cargando.set(true);
+      this.api.listar(estado).subscribe({
+          next: (lista) => {
+            if (token !== this.token) {
+              return;
+            }
+            this.empresas.set(lista);
+            this.cargando.set(false);
+          },
+          error: (err) => {
+            if (token !== this.token) {
+              return;
+            }
+            this.empresas.set([]);
+            this.cargando.set(false);
+            this.alertas.error(mensajeError(err));
+          },
+        });
+      return;
+    }
+
+    if (vista === 'nueva') {
+      this.empresa.set(null);
+      this.cargando.set(false);
+      return;
+    }
+
+    if (!Number.isFinite(id) || id <= 0) {
+      void this.router.navigate(['/empresas']);
+      return;
+    }
+
+    this.cargando.set(true);
+    this.api.obtener(id).subscribe({
+      next: (empresa) => {
+        if (token !== this.token) {
+          return;
+        }
+        this.empresa.set(empresa);
+        this.cargando.set(false);
+      },
+      error: (err) => {
+        if (token !== this.token) {
+          return;
+        }
+        this.cargando.set(false);
+        this.alertas.error(mensajeError(err));
+        void this.router.navigate(['/empresas']);
+      },
+    });
+  }
+
+  private leerRuta(): { vista: VistaEmpresa; id: number } {
+    const partes = this.router.url.split('?')[0].split('/').filter(Boolean);
+    if (partes[1] === 'nueva') {
+      return { vista: 'nueva', id: 0 };
+    }
+    const id = partes[1] && /^\d+$/.test(partes[1]) ? Number(partes[1]) : 0;
+    if (partes[2] === 'editar') {
+      return { vista: 'editar', id };
+    }
+    if (partes[2] === 'suspender') {
+      return { vista: 'suspender', id };
+    }
+    if (id) {
+      return { vista: 'detalle', id };
+    }
+    return { vista: 'lista', id: 0 };
+  }
+
+  private redirigirQuery(params: ParamMap): boolean {
+    const vista = params.get('vista');
+    if (!vista) {
+      return false;
+    }
+    const id = params.get('id');
+    if (vista === 'nueva') {
+      void this.router.navigate(['/empresas/nueva'], { replaceUrl: true });
+      return true;
+    }
+    if (id && /^\d+$/.test(id)) {
+      if (vista === 'editar' || vista === 'suspender') {
+        void this.router.navigate(['/empresas', id, vista], { replaceUrl: true });
+        return true;
+      }
+      if (vista === 'detalle') {
+        void this.router.navigate(['/empresas', id], { replaceUrl: true });
+        return true;
+      }
+    }
+    return false;
   }
 }

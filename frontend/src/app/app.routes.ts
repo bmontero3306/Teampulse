@@ -1,10 +1,20 @@
 import { Routes } from '@angular/router';
 
 import { authGuard, claveGuard, guestGuard, mustChangePasswordGuard, rolGuard } from './core/guards';
+import { PublicLayoutComponent } from './layout/public-layout.component';
 import { ShellComponent } from './layout/shell.component';
 
+const rolesSuperadmin = { canActivate: [rolGuard], data: { roles: ['superadmin'] } };
+const rolesRrhh = { canActivate: [rolGuard], data: { roles: ['superadmin', 'admin_rrhh'] } };
+
 export const routes: Routes = [
-  { path: '', loadComponent: () => import('./features/cuentas/auth.pages').then((m) => m.HomePage) },
+  {
+    path: '',
+    component: PublicLayoutComponent,
+    children: [
+      { path: '', loadComponent: () => import('./features/panel/home.page').then((m) => m.HomePage) },
+    ],
+  },
   {
     path: 'login',
     canActivate: [guestGuard],
@@ -38,14 +48,57 @@ export const routes: Routes = [
       },
       {
         path: 'empresas',
-        canActivate: [rolGuard],
-        data: { roles: ['superadmin'] },
+        ...rolesSuperadmin,
+        loadComponent: () => import('./features/empresas/empresas.page').then((m) => m.EmpresasPage),
+      },
+      {
+        path: 'empresas/nueva',
+        ...rolesSuperadmin,
+        loadComponent: () => import('./features/empresas/empresas.page').then((m) => m.EmpresasPage),
+      },
+      {
+        path: 'empresas/:id/editar',
+        ...rolesSuperadmin,
+        loadComponent: () => import('./features/empresas/empresas.page').then((m) => m.EmpresasPage),
+      },
+      {
+        path: 'empresas/:id/suspender',
+        ...rolesSuperadmin,
+        loadComponent: () => import('./features/empresas/empresas.page').then((m) => m.EmpresasPage),
+      },
+      {
+        path: 'empresas/:id',
+        ...rolesSuperadmin,
         loadComponent: () => import('./features/empresas/empresas.page').then((m) => m.EmpresasPage),
       },
       {
         path: 'usuarios',
-        canActivate: [rolGuard],
-        data: { roles: ['superadmin', 'admin_rrhh'] },
+        ...rolesRrhh,
+        loadComponent: () => import('./features/cuentas/usuarios.page').then((m) => m.UsuariosPage),
+      },
+      {
+        path: 'usuarios/nuevo',
+        ...rolesRrhh,
+        loadComponent: () => import('./features/cuentas/usuarios.page').then((m) => m.UsuariosPage),
+      },
+      {
+        path: 'usuarios/:id/editar',
+        ...rolesRrhh,
+        loadComponent: () => import('./features/cuentas/usuarios.page').then((m) => m.UsuariosPage),
+      },
+      {
+        path: 'usuarios/:id/desactivar',
+        ...rolesRrhh,
+        loadComponent: () => import('./features/cuentas/usuarios.page').then((m) => m.UsuariosPage),
+      },
+      {
+        path: 'usuarios/:id/bloquear',
+        ...rolesRrhh,
+        loadComponent: () => import('./features/cuentas/usuarios.page').then((m) => m.UsuariosPage),
+      },
+      {
+        path: 'usuarios/:id/reset-clave',
+        ...rolesRrhh,
         loadComponent: () => import('./features/cuentas/usuarios.page').then((m) => m.UsuariosPage),
       },
       {
@@ -53,16 +106,98 @@ export const routes: Routes = [
         loadComponent: () => import('./features/organizacion/organizacion.page').then((m) => m.OrganizacionPage),
       },
       {
+        path: 'organizacion/organigrama',
+        redirectTo: '/organizacion',
+        pathMatch: 'full',
+      },
+      {
+        path: 'organizacion/puestos',
+        loadComponent: () => import('./features/organizacion/organizacion.page').then((m) => m.OrganizacionPage),
+      },
+      {
+        path: 'organizacion/puestos/nuevo',
+        ...rolesRrhh,
+        loadComponent: () => import('./features/organizacion/organizacion.page').then((m) => m.OrganizacionPage),
+      },
+      {
+        path: 'organizacion/puestos/:id/editar',
+        ...rolesRrhh,
+        loadComponent: () => import('./features/organizacion/organizacion.page').then((m) => m.OrganizacionPage),
+      },
+      {
+        path: 'organizacion/areas',
+        loadComponent: () => import('./features/organizacion/organizacion.page').then((m) => m.OrganizacionPage),
+      },
+      {
+        path: 'organizacion/areas/nueva',
+        ...rolesRrhh,
+        loadComponent: () => import('./features/organizacion/organizacion.page').then((m) => m.OrganizacionPage),
+      },
+      {
+        path: 'organizacion/areas/:id/editar',
+        ...rolesRrhh,
+        loadComponent: () => import('./features/organizacion/organizacion.page').then((m) => m.OrganizacionPage),
+      },
+      {
+        path: 'organizacion/competencias',
+        loadComponent: () => import('./features/organizacion/organizacion.page').then((m) => m.OrganizacionPage),
+      },
+      {
+        path: 'organizacion/competencias/nueva',
+        ...rolesRrhh,
+        loadComponent: () => import('./features/organizacion/organizacion.page').then((m) => m.OrganizacionPage),
+      },
+      {
+        path: 'organizacion/competencias/:id/editar',
+        ...rolesRrhh,
+        loadComponent: () => import('./features/organizacion/organizacion.page').then((m) => m.OrganizacionPage),
+      },
+      {
         path: 'evaluaciones/plantillas',
         loadComponent: () => import('./features/evaluaciones/plantillas-ciclos.page').then((m) => m.PlantillasPage),
+      },
+      {
+        path: 'evaluaciones/plantillas/nueva',
+        ...rolesRrhh,
+        loadComponent: () => import('./features/evaluaciones/plantilla-form.page').then((m) => m.PlantillaFormPage),
+      },
+      {
+        path: 'evaluaciones/plantillas/:id/editar',
+        ...rolesRrhh,
+        loadComponent: () => import('./features/evaluaciones/plantilla-form.page').then((m) => m.PlantillaFormPage),
       },
       {
         path: 'evaluaciones/ciclos',
         loadComponent: () => import('./features/evaluaciones/plantillas-ciclos.page').then((m) => m.CiclosPage),
       },
       {
+        path: 'evaluaciones/ciclos/nuevo',
+        ...rolesRrhh,
+        loadComponent: () => import('./features/evaluaciones/ciclo-form.page').then((m) => m.CicloFormPage),
+      },
+      {
+        path: 'evaluaciones/ciclos/:id/reprogramar',
+        ...rolesRrhh,
+        loadComponent: () => import('./features/evaluaciones/ciclo-detalle.page').then((m) => m.CicloDetallePage),
+      },
+      {
+        path: 'evaluaciones/ciclos/:id/activar',
+        ...rolesRrhh,
+        loadComponent: () => import('./features/evaluaciones/ciclo-detalle.page').then((m) => m.CicloDetallePage),
+      },
+      {
+        path: 'evaluaciones/ciclos/:id/pausar',
+        ...rolesRrhh,
+        loadComponent: () => import('./features/evaluaciones/ciclo-detalle.page').then((m) => m.CicloDetallePage),
+      },
+      {
+        path: 'evaluaciones/ciclos/:id/cancelar',
+        ...rolesRrhh,
+        loadComponent: () => import('./features/evaluaciones/ciclo-detalle.page').then((m) => m.CicloDetallePage),
+      },
+      {
         path: 'evaluaciones/ciclos/:id',
-        loadComponent: () => import('./features/evaluaciones/plantillas-ciclos.page').then((m) => m.CicloDetallePage),
+        loadComponent: () => import('./features/evaluaciones/ciclo-detalle.page').then((m) => m.CicloDetallePage),
       },
       {
         path: 'evaluaciones/mias',
@@ -91,27 +226,31 @@ export const routes: Routes = [
       },
       {
         path: 'notificaciones',
-        loadComponent: () => import('./features/resto/resto.pages').then((m) => m.NotificacionesPage),
+        loadComponent: () => import('./features/resto/notificaciones.page').then((m) => m.NotificacionesPage),
       },
       {
         path: 'reportes/iso',
-        canActivate: [rolGuard],
-        data: { roles: ['superadmin', 'admin_rrhh'] },
-        loadComponent: () => import('./features/resto/resto.pages').then((m) => m.ReportesPage),
+        ...rolesRrhh,
+        loadComponent: () => import('./features/resto/reportes.page').then((m) => m.ReportesPage),
       },
       {
         path: 'auditoria',
-        canActivate: [rolGuard],
-        data: { roles: ['superadmin', 'admin_rrhh'] },
-        loadComponent: () => import('./features/resto/resto.pages').then((m) => m.AuditoriaPage),
+        ...rolesRrhh,
+        loadComponent: () => import('./features/resto/auditoria.page').then((m) => m.AuditoriaPage),
       },
       {
         path: 'ayuda',
-        loadComponent: () => import('./features/resto/resto.pages').then((m) => m.AyudaPage),
+        loadComponent: () => import('./features/ayuda/ayuda.page').then((m) => m.AyudaPage),
       },
       {
-        path: 'ayuda/:slug',
-        loadComponent: () => import('./features/resto/resto.pages').then((m) => m.AyudaPaginaPage),
+        path: 'ayuda',
+        loadComponent: () => import('./features/ayuda/ayuda-layout').then((m) => m.AyudaLayoutComponent),
+        children: [
+          {
+            path: ':slug',
+            loadComponent: () => import('./features/ayuda/ayuda-pagina.page').then((m) => m.AyudaPaginaPage),
+          },
+        ],
       },
     ],
   },
