@@ -47,5 +47,10 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
             "modelos": list(
                 base.exclude(modelo="").values_list("modelo", flat=True).distinct().order_by("modelo")
             ),
+            "usuarios": list(
+                Usuario.objects.for_empresa(getattr(request, "empresa", None))
+                .order_by("email")
+                .values("id", "email")
+            ),
         }
         return response

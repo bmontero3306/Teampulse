@@ -39,6 +39,20 @@ def _filtros_api(request):
     }
 
 
+def _slug_empresa(reporte):
+    nombre = getattr(reporte.empresa, "nombre", None) or "teampulse"
+    limpio = "".join(ch if ch.isalnum() else "-" for ch in nombre).strip("-")
+    return (limpio or "teampulse").lower()[:40]
+
+
+def _area_evaluacion(ev):
+    if ev.evaluado_id and ev.evaluado.area_id:
+        return ev.evaluado.area.nombre
+    if ev.puesto_id and ev.puesto.area_id:
+        return ev.puesto.area.nombre
+    return None
+
+
 def _iso_json(reporte):
     ind = reporte.indicadores
     filas = []
@@ -51,10 +65,14 @@ def _iso_json(reporte):
                 "evaluador": (
                     ev.evaluador.get_full_name() or ev.evaluador.email if ev.evaluador_id else None
                 ),
-                "area": ev.puesto.area.nombre if ev.puesto_id and ev.puesto.area_id else None,
+                "area": _area_evaluacion(ev),
                 "puesto": ev.puesto.nombre if ev.puesto_id else None,
                 "estado": ev.estado,
                 "estado_display": ev.get_estado_display(),
+                "enviada_auto_en": ev.enviada_auto_en,
+                "cerrada_supervisor_en": ev.cerrada_supervisor_en,
+                "firmada_en": ev.firmada_en,
+                "firma_hash": ev.firma_hash or None,
             }
         )
     return {
@@ -103,14 +121,15 @@ class IsoExportApiView(APIView):
 
     def get(self, request):
         reporte = construir_iso_reporte(_filtros_api(request))
+        slug = _slug_empresa(reporte)
         if self.formato == "pdf":
             contenido = exportar_iso_pdf(reporte, usuario=request.user)
             content_type = CONTENT_TYPE_PDF
-            filename = "reporte-iso.pdf"
+            filename = f"reporte-iso-{slug}.pdf"
         else:
             contenido = exportar_iso_excel(reporte, usuario=request.user)
             content_type = CONTENT_TYPE_EXCEL
-            filename = "reporte-iso.xlsx"
+            filename = f"reporte-iso-{slug}.xlsx"
         registrar_auditoria(
             request,
             Accion.EXPORTAR,

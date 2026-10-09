@@ -20,4 +20,5 @@ class AuditLogSerializer(serializers.ModelSerializer):
             "object_id",
             "payload",
             "ip",
+            "user_agent",
         )
