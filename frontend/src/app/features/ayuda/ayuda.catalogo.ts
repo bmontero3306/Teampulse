@@ -85,7 +85,7 @@ export const PAGINAS_AYUDA: readonly PaginaAyuda[] = [
   },
   {
     slug: 'reportes',
-    titulo: 'Reportes ISO 9001',
+    titulo: 'Reportes',
     resumen: 'Filtros, exportación PDF/Excel y trazabilidad de la exportación.',
     icono: 'chart-column',
     grupo: 'Seguimiento',

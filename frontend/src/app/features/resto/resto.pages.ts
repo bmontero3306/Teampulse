@@ -59,7 +59,7 @@ export class NotificacionesPage {
   selector: 'app-reportes',
   imports: [StatsCardComponent, ButtonComponent, DynamicTableComponent],
   template: `
-    <h1 class="text-2xl font-semibold">Reportes ISO</h1>
+    <h1 class="text-2xl font-semibold">Reportes</h1>
     <form class="mt-4 flex flex-wrap gap-2" (submit)="$event.preventDefault(); cargar()">
       <select class="rounded-lg border border-slate-300 px-2 py-2 text-sm" (change)="ciclo = valor($event)">
         <option value="">Todos los ciclos</option>

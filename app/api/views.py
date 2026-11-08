@@ -164,12 +164,12 @@ def _pagina_publica(pagina):
 
 CUERPO = {
     "inicio": [
-        "TeamPulse gestiona el desempeño por empresa: autoevaluación, evaluación del supervisor, firma de conformidad y reportes alineados a ISO 9001.",
+        "TeamPulse gestiona el desempeño por empresa: autoevaluación, evaluación del supervisor, firma de conformidad y reportes.",
         "1. Armar la organización: áreas, puestos, organigrama y competencias.",
         "2. Definir qué se evalúa: una plantilla reúne criterios, escalas y ponderaciones.",
         "3. Abrir un ciclo: RRHH lo crea y, al activarlo, se generan las evaluaciones de quienes tienen puesto.",
         "4. Recorrer el flujo: empleado, supervisor, reunión opcional y firma.",
-        "5. Cerrar y reportar: exportar ISO y consultar la auditoría.",
+        "5. Cerrar y reportar: exportar reportes y consultar la auditoría.",
     ],
     "roles": [
         "Superadmin: administra empresas de la plataforma y entra al contexto de cada una.",
@@ -207,7 +207,7 @@ CUERPO = {
         "El comando enviar_recordatorios avisa pendientes de un ciclo activo.",
     ],
     "reportes": [
-        "El reporte ISO filtra por ciclo, área, estado de conformidad y fechas.",
+        "El reporte filtra por ciclo, área, estado de conformidad y fechas.",
         "Se puede previsualizar y exportar a PDF o Excel. Cada exportación queda en la auditoría.",
     ],
     "auditoria": [

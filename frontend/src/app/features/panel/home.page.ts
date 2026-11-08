@@ -70,7 +70,7 @@ import { RouterLink } from '@angular/router';
             <span class="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-sky-50 text-sky-700">
               <i data-lucide="file-check-2" class="h-4 w-4"></i>
             </span>
-            <h2 class="mt-4 text-base font-semibold text-slate-900">Listo para ISO 9001</h2>
+            <h2 class="mt-4 text-base font-semibold text-slate-900">Reportes listos</h2>
             <p class="mt-2 text-sm leading-relaxed text-slate-600">
               Exportá ciclos, áreas y conformidad. Evidencia ordenada cuando llega la auditoría.
             </p>

@@ -39,7 +39,7 @@ describe('Inicio y panel', () => {
     expect(html.textContent).toContain('Desempeño con evidencia, no con planillas sueltas');
     expect(html.textContent).toContain('Un flujo, tres voces');
     expect(html.textContent).toContain('Firma y rastro');
-    expect(html.textContent).toContain('Listo para ISO 9001');
+    expect(html.textContent).toContain('Reportes listos');
     expect(html.querySelectorAll('a[href="/login"]').length).toBe(2);
     expect(document.title).toBe('Inicio · TeamPulse');
   });

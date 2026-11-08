@@ -28,7 +28,7 @@ import {
       <p class="text-sm font-medium uppercase tracking-wide text-sky-700">TeamPulse</p>
       <h1 class="mt-2 text-4xl font-semibold tracking-tight text-slate-900">Gestión de desempeño</h1>
       <p class="mt-4 text-slate-600">
-        Autoevaluación, evaluación del supervisor, firma de conformidad y reportes ISO 9001.
+        Autoevaluación, evaluación del supervisor, firma de conformidad y reportes.
       </p>
       <a routerLink="/login" class="mt-8 inline-flex w-fit rounded-lg bg-sky-700 px-4 py-2 text-sm font-medium text-white">
         Ingresar
@@ -48,12 +48,11 @@ export class HomePage {}
         <h1 class="text-2xl font-semibold text-slate-900">Iniciar sesión</h1>
         <p class="mt-2 text-sm text-slate-600">Ingresá con tu correo electrónico y contraseña.</p>
 
-        <form class="mt-6 space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm" (submit)="$event.preventDefault(); enviar()">
+        <form method="post" class="mt-6 space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm" (submit)="$event.preventDefault(); enviar()">
           <app-mensajes-cuenta [mensajes]="mensajes()" [general]="general()" />
           <app-campo-cuenta id="id_username" label="Correo electrónico" [required]="true" [error]="error('username')">
             <input
               id="id_username"
-              name="username"
               type="email"
               autocomplete="username"
               autofocus
@@ -65,7 +64,6 @@ export class HomePage {}
           <app-campo-cuenta id="id_password" label="Contraseña" [required]="true" [error]="error('password')">
             <input
               id="id_password"
-              name="password"
               type="password"
               autocomplete="current-password"
               placeholder="••••••••"
@@ -160,7 +158,7 @@ export class LoginPage {
           <p class="mt-2 text-sm text-slate-600">
             Ingresá tu correo y te enviaremos un enlace para elegir una nueva clave.
           </p>
-          <form class="mt-6 space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm" (submit)="$event.preventDefault(); enviar()">
+          <form method="post" class="mt-6 space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm" (submit)="$event.preventDefault(); enviar()">
             <app-mensajes-cuenta [general]="general()" />
             <app-campo-cuenta id="id_email" label="Correo electrónico" [required]="true" [error]="errorEmail()">
               <input
@@ -229,7 +227,7 @@ export class RecuperarPage {
       <section class="mx-auto flex min-h-[calc(100vh-4rem)] max-w-md flex-col justify-center px-6 py-10">
         <h1 class="text-2xl font-semibold text-slate-900">Elegí una nueva contraseña</h1>
         @if (enlaceValido()) {
-          <form class="mt-6 space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm" (submit)="$event.preventDefault(); enviar()">
+          <form method="post" class="mt-6 space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm" (submit)="$event.preventDefault(); enviar()">
             <app-mensajes-cuenta [general]="general()" />
             <app-campo-cuenta
               id="id_new_password1"
@@ -344,7 +342,7 @@ export class ResetConfirmPage {
           Debés cambiar tu contraseña antes de continuar.
         </p>
       }
-          <form class="mt-6 space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm" (submit)="$event.preventDefault(); enviar()">
+          <form method="post" class="mt-6 space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm" (submit)="$event.preventDefault(); enviar()">
         <app-mensajes-cuenta [general]="general()" />
         <app-campo-cuenta id="id_old_password" label="Contraseña antigua" [required]="true" [error]="error('old_password')">
           <input

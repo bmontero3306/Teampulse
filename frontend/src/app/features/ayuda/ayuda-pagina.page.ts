@@ -25,7 +25,7 @@ import { AyudaPasoComponent } from './ayuda-paso.component';
                 <h1 class="mt-1 text-2xl font-semibold tracking-tight text-slate-900">Cómo funciona TeamPulse</h1>
                 <p class="mt-2 text-sm text-slate-600">
                   TeamPulse gestiona el desempeño por empresa: autoevaluación, evaluación del supervisor, firma de
-                  conformidad y reportes alineados a ISO 9001.
+                  conformidad y reportes.
                 </p>
               </header>
 
@@ -64,7 +64,7 @@ import { AyudaPasoComponent } from './ayuda-paso.component';
                     <li class="rounded-xl border border-slate-200 bg-white p-4">
                       <p class="font-medium text-slate-900">5. Cerrar y reportar</p>
                       <p class="mt-1 text-slate-600">
-                        El ciclo se cierra. RRHH exporta reportes ISO y consulta la auditoría de lo ocurrido.
+                        El ciclo se cierra. RRHH exporta reportes y consulta la auditoría de lo ocurrido.
                       </p>
                     </li>
                   </ol>
@@ -174,7 +174,7 @@ import { AyudaPasoComponent } from './ayuda-paso.component';
                           Configura la empresa: usuarios, organización, plantillas, ciclos, reportes y auditoría. Puede
                           asignar un evaluador si faltó.
                         </td>
-                        <td class="px-4 py-3">Usuarios, Organigrama, Plantillas, Ciclos, Reportes ISO, Auditoría.</td>
+                        <td class="px-4 py-3">Usuarios, Organigrama, Plantillas, Ciclos, Reportes, Auditoría.</td>
                       </tr>
                       <tr>
                         <td class="px-4 py-3 font-medium text-slate-900">Superadmin</td>
@@ -676,7 +676,7 @@ import { AyudaPasoComponent } from './ayuda-paso.component';
             @case ('reportes') {
               <header class="mb-6">
                 <p class="text-xs font-medium uppercase tracking-wide text-sky-700">Seguimiento</p>
-                <h1 class="mt-1 text-2xl font-semibold tracking-tight text-slate-900">Reportes ISO 9001</h1>
+                <h1 class="mt-1 text-2xl font-semibold tracking-tight text-slate-900">Reportes</h1>
                 <p class="mt-2 text-sm text-slate-600">
                   RRHH (y el superadmin con empresa seleccionada) puede filtrar evaluaciones y exportar PDF o Excel.
                   Cada exportación queda en el log de auditoría.
@@ -725,7 +725,7 @@ import { AyudaPasoComponent } from './ayuda-paso.component';
                     <li>Registrar u omitir reunión de feedback</li>
                     <li>Firmar conformidad u observar</li>
                     <li>Asignar evaluador</li>
-                    <li>Exportar reportes ISO</li>
+                    <li>Exportar reportes</li>
                   </ul>
                 </section>
 

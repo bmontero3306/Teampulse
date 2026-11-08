@@ -129,7 +129,7 @@ function badgeClase(estado: string): string {
     <section>
       <div class="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 class="text-2xl font-semibold tracking-tight text-slate-900">Reportes ISO 9001</h1>
+          <h1 class="text-2xl font-semibold tracking-tight text-slate-900">Reportes</h1>
           <p class="mt-1 text-sm text-slate-600">
             Cumplimiento del ciclo de evaluación: indicadores, fechas de cada etapa y export auditable.
           </p>
@@ -323,7 +323,7 @@ export class ReportesPage {
   fechaHasta = signal('');
 
   constructor() {
-    inject(Title).setTitle('Reportes ISO 9001 · TeamPulse');
+    inject(Title).setTitle('Reportes · TeamPulse');
     const id = this.auth.sesion()?.empresa_actual?.id;
     if (id) {
       this.empresa.set(String(id));
