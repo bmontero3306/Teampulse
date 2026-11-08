@@ -61,6 +61,45 @@ class ApiAuthTests(APITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("suspendida", response.data["detail"])
 
+    def test_login_inactivo(self):
+        self.usuario.is_active = False
+        self.usuario.save(update_fields=["is_active"])
+        response = self.client.post(
+            self.login_url,
+            {"email": self.usuario.email, "password": self.password},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("desactivada", response.data["detail"])
+
+    def test_login_empresa_inactiva(self):
+        self.empresa.estado = Empresa.Estado.INACTIVA
+        self.empresa.save(update_fields=["estado"])
+        response = self.client.post(
+            self.login_url,
+            {"email": self.usuario.email, "password": self.password},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("no está activa", response.data["detail"])
+
+    def test_login_sin_empresa(self):
+        Usuario.objects.create_user(
+            email="suelto@empresa.test",
+            password=self.password,
+            rol=Usuario.Rol.EMPLEADO,
+            empresa=None,
+            is_active=True,
+            must_change_password=False,
+        )
+        response = self.client.post(
+            self.login_url,
+            {"email": "suelto@empresa.test", "password": self.password},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("no está asociada a una empresa", response.data["detail"])
+
     def test_me_y_logout(self):
         token = self.client.post(
             self.login_url,

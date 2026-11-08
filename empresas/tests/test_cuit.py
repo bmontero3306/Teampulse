@@ -1,9 +1,16 @@
 from django.core.exceptions import ValidationError
-from django.test import TestCase
+from django.test import RequestFactory, TestCase
 
-from empresas.forms import EmpresaForm
+from cuentas.models import Usuario
+from empresas.api.serializers import EmpresaSerializer
 from empresas.models import Empresa
 from empresas.validators import formatear_cuit, normalizar_cuit, validar_cuit
+
+
+def _serializer(data, instance=None, rol=Usuario.Rol.SUPERADMIN):
+    request = RequestFactory().post("/api/v1/empresas/")
+    request.user = Usuario(rol=rol)
+    return EmpresaSerializer(instance=instance, data=data, context={"request": request})
 
 
 class ValidarCuitTests(TestCase):
@@ -27,9 +34,9 @@ class ValidarCuitTests(TestCase):
     def test_formatea_visualizacion(self):
         self.assertEqual(formatear_cuit("30712345678"), "30-71234567-8")
 
-    def test_form_guarda_cuit_normalizado(self):
-        form = EmpresaForm(
-            data={
+    def test_serializer_guarda_cuit_normalizado(self):
+        serializer = _serializer(
+            {
                 "nombre": "Acme",
                 "razon_social": "Acme S.A.",
                 "cuit": "30-88888888-8",
@@ -37,6 +44,6 @@ class ValidarCuitTests(TestCase):
                 "estado": Empresa.Estado.ACTIVA,
             }
         )
-        self.assertTrue(form.is_valid(), form.errors)
-        empresa = form.save()
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        empresa = serializer.save()
         self.assertEqual(empresa.cuit, "30888888888")

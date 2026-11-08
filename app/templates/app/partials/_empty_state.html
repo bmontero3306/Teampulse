@@ -1,9 +1,0 @@
-{% if titulo %}
-<p class="text-sm font-medium text-slate-800">{{ titulo }}</p>
-{% endif %}
-<p class="mt-1 text-sm text-slate-500">{{ mensaje }}</p>
-{% if accion_href and accion_label %}
-<a href="{{ accion_href }}" class="mt-3 inline-flex rounded-lg bg-sky-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-sky-700">
-    {{ accion_label }}
-</a>
-{% endif %}

@@ -1,6 +1,14 @@
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
 from organizacion.models import Area, Competencia, Puesto
+from organizacion.services import (
+    MENSAJE_SUPERIOR_INACTIVO,
+    JerarquiaCircularError,
+    validar_desactivacion_puesto,
+    validar_jerarquia_areas,
+    validar_jerarquia_puestos,
+)
 
 
 class AreaSerializer(serializers.ModelSerializer):
@@ -13,6 +21,16 @@ class AreaSerializer(serializers.ModelSerializer):
         fields = ("id", "nombre", "area_padre", "area_padre_nombre", "activa")
         extra_kwargs = {"area_padre": {"required": False, "allow_null": True}}
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        empresa = self.context.get("empresa")
+        if empresa is None:
+            return
+        qs = Area.objects.filter(empresa=empresa)
+        if self.instance is not None and getattr(self.instance, "pk", None):
+            qs = qs.exclude(pk=self.instance.pk)
+        self.fields["area_padre"].queryset = qs
+
     def validate(self, attrs):
         empresa = self.context["empresa"]
         padre = attrs.get("area_padre", getattr(self.instance, "area_padre", None))
@@ -20,6 +38,11 @@ class AreaSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {"area_padre": "El área padre debe pertenecer a la misma empresa."}
             )
+        instancia = self.instance if self.instance is not None else Area(empresa=empresa)
+        try:
+            validar_jerarquia_areas(instancia, padre)
+        except JerarquiaCircularError as exc:
+            raise serializers.ValidationError({"area_padre": str(exc)}) from exc
         return attrs
 
     def create(self, validated_data):
@@ -66,7 +89,48 @@ class PuestoSerializer(serializers.ModelSerializer):
         if empresa is None:
             return
         self.fields["area"].queryset = Area.objects.filter(empresa=empresa)
-        self.fields["puesto_superior"].queryset = Puesto.objects.filter(empresa=empresa)
+        superiores = Puesto.objects.filter(empresa=empresa)
+        if self.instance is not None and getattr(self.instance, "pk", None):
+            superiores = superiores.exclude(pk=self.instance.pk)
+        self.fields["puesto_superior"].queryset = superiores
+
+    def validate(self, attrs):
+        empresa = self.context["empresa"]
+        area = attrs.get("area", getattr(self.instance, "area", None))
+        superior = attrs.get(
+            "puesto_superior", getattr(self.instance, "puesto_superior", None)
+        )
+        if area is not None and area.empresa_id != empresa.pk:
+            raise serializers.ValidationError(
+                {"area": "El área debe pertenecer a la misma empresa."}
+            )
+        if superior is not None and superior.empresa_id != empresa.pk:
+            raise serializers.ValidationError(
+                {
+                    "puesto_superior": "El puesto superior debe pertenecer a la misma empresa."
+                }
+            )
+        instancia = self.instance if self.instance is not None else Puesto(empresa=empresa)
+        try:
+            validar_jerarquia_puestos(instancia, superior)
+        except JerarquiaCircularError as exc:
+            raise serializers.ValidationError({"puesto_superior": str(exc)}) from exc
+        activo = attrs.get("activo", getattr(self.instance, "activo", True))
+        if (
+            self.instance is not None
+            and getattr(self.instance, "pk", None)
+            and self.instance.activo
+            and not activo
+        ):
+            try:
+                validar_desactivacion_puesto(self.instance)
+            except DjangoValidationError as exc:
+                raise serializers.ValidationError(exc.message_dict) from exc
+        if activo and superior is not None and not superior.activo:
+            raise serializers.ValidationError(
+                {"puesto_superior": MENSAJE_SUPERIOR_INACTIVO}
+            )
+        return attrs
 
     def create(self, validated_data):
         puesto = Puesto(empresa=self.context["empresa"], **validated_data)

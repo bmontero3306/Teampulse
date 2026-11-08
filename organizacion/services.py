@@ -69,6 +69,32 @@ def puestos_hijos(puesto, solo_activos=False):
     return qs
 
 
+MENSAJE_SUPERIOR_INACTIVO = "El puesto superior tiene que estar activo."
+
+
+def mensaje_desactivacion_con_hijos(hijos):
+    """Texto para rechazar la baja de un puesto que todavía tiene dependientes."""
+    nombres = [
+        hijo.nombre if hijo.activo else f"{hijo.nombre} (inactivo)" for hijo in hijos
+    ]
+    lista = ", ".join(nombres)
+    return (
+        "No se puede desactivar este puesto porque tiene puestos a cargo: "
+        f"{lista}. Reasigná cada uno a otro puesto superior y volvé a intentarlo."
+    )
+
+
+def validar_desactivacion_puesto(puesto):
+    """Rechaza desactivar o eliminar un puesto con hijos directos."""
+    from django.core.exceptions import ValidationError
+
+    if not getattr(puesto, "pk", None):
+        return
+    hijos = list(puestos_hijos(puesto))
+    if hijos:
+        raise ValidationError({"activo": mensaje_desactivacion_con_hijos(hijos)})
+
+
 def query_organigrama(empresa, *, solo_activos=True, raiz=None):
     """Árbol de puestos: raíces + hijos (atributo `hijos_organigrama`)."""
     from organizacion.models import Puesto

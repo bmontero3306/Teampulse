@@ -1,20 +1,10 @@
 """Menú del shell autenticado según rol. # WP8"""
 
-from django.urls import NoReverseMatch, reverse
-
 from cuentas.models import Usuario
 
 
-def _ruta(nombre, fallback):
-    """Usa la ruta nombrada si existe; si el WP aún no la registró, usa el mapa §6."""
-    try:
-        return reverse(nombre)
-    except NoReverseMatch:
-        return fallback
-
-
 def items_navegacion(user, empresa=None):
-    """Lista de links visibles. Un solo menú armado por flags, no plantillas distintas."""
+    """Lista de links visibles. Paths de la SPA, sin rutas HTML."""
     if user is None or not getattr(user, "is_authenticated", False):
         return []
 
@@ -31,104 +21,91 @@ def items_navegacion(user, empresa=None):
             "clave": "dashboard",
             "etiqueta": "Panel",
             "icono": "layout-dashboard",
-            "nombre": "app:dashboard",
-            "fallback": "/dashboard",
+            "href": "/dashboard",
             "mostrar": True,
         },
         {
             "clave": "empresas",
             "etiqueta": "Empresas",
             "icono": "building-2",
-            "nombre": "empresas:lista",
-            "fallback": "/empresas",
+            "href": "/empresas",
             "mostrar": es_superadmin,
         },
         {
             "clave": "usuarios",
             "etiqueta": "Usuarios",
             "icono": "users",
-            "nombre": "cuentas:usuarios",
-            "fallback": "/usuarios",
+            "href": "/usuarios",
             "mostrar": es_admin,
         },
         {
             "clave": "organigrama",
             "etiqueta": "Organigrama",
             "icono": "network",
-            "nombre": "organizacion:organigrama",
-            "fallback": "/organizacion",
+            "href": "/organizacion",
             "mostrar": es_admin or es_supervisor,
         },
         {
             "clave": "plantillas",
             "etiqueta": "Plantillas",
             "icono": "clipboard-list",
-            "nombre": "evaluaciones:plantillas",
-            "fallback": "/evaluaciones/plantillas",
+            "href": "/evaluaciones/plantillas",
             "mostrar": es_admin or es_supervisor,
         },
         {
             "clave": "ciclos",
             "etiqueta": "Ciclos",
             "icono": "calendar",
-            "nombre": "evaluaciones:ciclos",
-            "fallback": "/evaluaciones/ciclos",
+            "href": "/evaluaciones/ciclos",
             "mostrar": es_admin or es_supervisor,
         },
         {
             "clave": "equipo",
             "etiqueta": "Equipo",
             "icono": "users-round",
-            "nombre": "evaluaciones:equipo",
-            "fallback": "/evaluaciones/equipo",
+            "href": "/evaluaciones/equipo",
             "mostrar": es_supervisor,
         },
         {
             "clave": "mias",
             "etiqueta": "Mis evaluaciones",
             "icono": "clipboard-check",
-            "nombre": "evaluaciones:mias",
-            "fallback": "/evaluaciones/mias",
+            "href": "/evaluaciones/mias",
             "mostrar": es_empleado,
         },
         {
             "clave": "reportes",
-            "etiqueta": "Reportes ISO",
+            "etiqueta": "Reportes",
             "icono": "chart-column",
-            "nombre": "reportes:iso",
-            "fallback": "/reportes/iso",
+            "href": "/reportes/iso",
             "mostrar": es_admin,
         },
         {
             "clave": "auditoria",
             "etiqueta": "Auditoría",
             "icono": "shield-check",
-            "nombre": "auditoria:lista",
-            "fallback": "/auditoria",
+            "href": "/auditoria",
             "mostrar": es_admin,
         },
         {
             "clave": "notificaciones",
             "etiqueta": "Notificaciones",
             "icono": "bell",
-            "nombre": "notificaciones:lista",
-            "fallback": "/notificaciones",
+            "href": "/notificaciones",
             "mostrar": es_admin or es_supervisor or es_empleado,
         },
         {
             "clave": "ayuda",
             "etiqueta": "Ayuda",
             "icono": "circle-help",
-            "nombre": "app:ayuda",
-            "fallback": "/ayuda",
+            "href": "/ayuda",
             "mostrar": True,
         },
         {
             "clave": "perfil",
             "etiqueta": "Perfil",
             "icono": "circle-user",
-            "nombre": "cuentas:perfil",
-            "fallback": "/perfil",
+            "href": "/perfil",
             "mostrar": True,
         },
     ]
@@ -142,7 +119,7 @@ def items_navegacion(user, empresa=None):
                 "clave": item["clave"],
                 "etiqueta": item["etiqueta"],
                 "icono": item["icono"],
-                "href": _ruta(item["nombre"], item["fallback"]),
+                "href": item["href"],
             }
         )
     return items

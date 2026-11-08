@@ -93,7 +93,6 @@ MIDDLEWARE = [
     "cuentas.middleware.TokenAuthMiddleware",
     "cuentas.middleware.MustChangePasswordApiMiddleware",
     "empresas.middleware.EmpresaMiddleware",  # WP0
-    "cuentas.middleware.MustChangePasswordMiddleware",  # WP2
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -110,8 +109,6 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
-                "app.context_processors.contexto_sesion",  # WP0
-                "app.context_processors.navegacion",  # WP8
             ],
         },
     },
@@ -171,9 +168,9 @@ MAILERS = {
 
 # WP0
 AUTH_USER_MODEL = "cuentas.Usuario"
-LOGIN_URL = "/cuentas/login/"
-LOGIN_REDIRECT_URL = "/dashboard/"
-LOGOUT_REDIRECT_URL = "/"
+LOGIN_URL = "/admin/login/"
+LOGIN_REDIRECT_URL = "/admin/"
+LOGOUT_REDIRECT_URL = "/admin/login/"
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "noreply@teampulse.local")
 # WP6 — notificaciones in-app + email vía MAILERS["default"] (console en dev).
 # Email único por empresa (UniqueConstraint), no global. EmailEmpresaBackend

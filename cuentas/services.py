@@ -12,6 +12,28 @@ def asignar_clave_temporal(usuario):
     return clave
 
 
+def usuarios_para_recuperar_clave(email):
+    from cuentas.models import Usuario
+    from empresas.models import Empresa
+
+    candidatos = Usuario.objects.filter(
+        email__iexact=email,
+        is_active=True,
+        bloqueado=False,
+    ).select_related("empresa")
+    elegibles = []
+    for usuario in candidatos:
+        if not usuario.has_usable_password():
+            continue
+        if usuario.rol == Usuario.Rol.SUPERADMIN:
+            elegibles.append(usuario)
+            continue
+        empresa = usuario.empresa
+        if empresa is not None and empresa.estado == Empresa.Estado.ACTIVA:
+            elegibles.append(usuario)
+    return elegibles
+
+
 def sincronizar_supervisor(usuario):
     """Deriva el supervisor del ocupante de puesto.puesto_superior.
 

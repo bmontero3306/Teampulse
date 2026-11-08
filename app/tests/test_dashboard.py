@@ -1,5 +1,5 @@
-from django.test import TestCase
-from django.urls import reverse
+from rest_framework.authtoken.models import Token
+from rest_framework.test import APITestCase
 
 from app.tests.factories import (
     make_ciclo,
@@ -11,97 +11,94 @@ from app.tests.factories import (
 from evaluaciones.models import CicloEvaluacion, Evaluacion
 
 
-class DashboardViewTests(TestCase):
-    def test_dashboard_requiere_login(self):
-        response = self.client.get(reverse("app:dashboard"))
-        self.assertEqual(response.status_code, 302)
-        self.assertIn("/cuentas/login/", response.url)
+def _claves(items, campo="clave"):
+    return [item[campo] for item in items]
 
-    def test_empleado_ve_pendientes_y_empty_state(self):
+
+class DashboardViewTests(APITestCase):
+    def _auth(self, usuario):
+        token, _ = Token.objects.get_or_create(user=usuario)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {token.key}")
+
+    def test_dashboard_requiere_token(self):
+        response = self.client.get("/api/v1/dashboard/")
+        self.assertEqual(response.status_code, 401)
+
+    def test_empleado_ve_pendientes_sin_ciclo(self):
         empresa = make_empresa()
         usuario = make_usuario(empresa, rol="empleado")
-        self.client.force_login(usuario)
-        response = self.client.get(reverse("app:dashboard"))
+        self._auth(usuario)
+        response = self.client.get("/api/v1/dashboard/")
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Panel · TeamPulse")
-        self.assertContains(response, 'data-widget="pendientes"')
-        self.assertContains(response, "No hay ciclo activo")
-        self.assertContains(response, 'data-acceso="mias"')
-        self.assertNotContains(response, 'data-widget="kpis"')
-        self.assertNotContains(response, 'data-widget="equipo"')
-        self.assertNotContains(response, 'data-widget="empresas"')
-        self.assertIsNone(response.context["kpis"])
+        data = response.data
+        self.assertIsNone(data["ciclo_activo"])
+        self.assertIsNone(data["kpis"])
+        self.assertEqual(data["pendientes"], [])
+        self.assertEqual(_claves(data["accesos_rapidos"]), ["mias"])
+        self.assertEqual(data["accesos_rapidos"][0]["href"], "/evaluaciones/mias")
+        self.assertTrue(data["mostrar_pendientes"])
+        self.assertFalse(data["mostrar_kpis"])
+        self.assertFalse(data["mostrar_equipo"])
+        self.assertFalse(data["mostrar_empresas"])
+        self.assertIsNone(data["equipo"])
 
     def test_supervisor_ve_equipo_y_pendientes(self):
         empresa = make_empresa()
         usuario = make_usuario(empresa, rol="supervisor")
-        self.client.force_login(usuario)
-        response = self.client.get(reverse("app:dashboard"))
+        self._auth(usuario)
+        response = self.client.get("/api/v1/dashboard/")
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'data-widget="equipo"')
-        self.assertContains(response, 'data-widget="pendientes"')
-        self.assertContains(response, "No hay colaboradores para evaluar")
-        self.assertNotContains(response, 'data-widget="kpis"')
+        data = response.data
+        self.assertTrue(data["mostrar_equipo"])
+        self.assertTrue(data["mostrar_pendientes"])
+        self.assertFalse(data["mostrar_kpis"])
+        self.assertIsNone(data["kpis"])
+        self.assertIsNone(data["ciclo_activo"])
+        self.assertEqual(data["equipo"]["total"], 0)
+        self.assertEqual(data["equipo"]["completitud"], 0)
+        self.assertEqual(data["equipo"]["evaluaciones"], [])
+        self.assertEqual(data["equipo"]["href"], "/evaluaciones/equipo")
 
     def test_admin_rrhh_ve_kpis_en_cero(self):
         empresa = make_empresa()
         usuario = make_usuario(empresa, rol="admin_rrhh")
-        self.client.force_login(usuario)
-        response = self.client.get(reverse("app:dashboard"))
+        self._auth(usuario)
+        response = self.client.get("/api/v1/dashboard/")
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'data-widget="kpis"')
-        self.assertContains(response, "Participantes")
-        self.assertContains(response, "Autoevaluaciones")
-        self.assertContains(response, "Sin evaluador")
-        self.assertContains(
-            response,
-            "Los indicadores se van a completar cuando haya un ciclo activo.",
-        )
-        self.assertEqual(response.context["kpis"]["participantes"], 0)
-        self.assertEqual(response.context["kpis"]["auto"], 0)
-        self.assertEqual(response.context["kpis"]["supervisor"], 0)
-        self.assertEqual(response.context["kpis"]["firmadas"], 0)
-        self.assertEqual(response.context["kpis"]["sin_evaluador"], 0)
-        self.assertNotContains(response, 'data-widget="pendientes"')
+        kpis = response.data["kpis"]
+        self.assertEqual(kpis["participantes"], 0)
+        self.assertEqual(kpis["auto"], 0)
+        self.assertEqual(kpis["supervisor"], 0)
+        self.assertEqual(kpis["firmadas"], 0)
+        self.assertEqual(kpis["sin_evaluador"], 0)
+        self.assertIsNone(response.data["ciclo_activo"])
+        self.assertTrue(response.data["mostrar_kpis"])
+        self.assertFalse(response.data["mostrar_pendientes"])
+        self.assertEqual(response.data["pendientes"], [])
 
     def test_superadmin_lista_empresas(self):
         empresa = make_empresa(nombre="Acme Industrial", estado="activa")
         usuario = make_usuario(None, rol="superadmin")
-        self.client.force_login(usuario)
-        response = self.client.get(reverse("app:dashboard"))
+        self._auth(usuario)
+        response = self.client.get("/api/v1/dashboard/")
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'data-widget="empresas"')
-        self.assertContains(response, "Acme Industrial")
-        self.assertContains(response, "Activa")
-        self.assertContains(response, 'href="/empresas/"')
-        self.assertContains(response, "overflow-x-auto")
-
-    def test_superadmin_sin_empresas_muestra_empty_state(self):
-        usuario = make_usuario(None, rol="superadmin")
-        self.client.force_login(usuario)
-        response = self.client.get(reverse("app:dashboard"))
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Todavía no hay empresas registradas")
-
-    def test_topbar_muestra_nombre_rol_y_logout_post(self):
-        empresa = make_empresa()
-        usuario = make_usuario(
-            empresa,
-            rol="empleado",
-            first_name="Ana",
-            last_name="Pérez",
+        self.assertTrue(response.data["mostrar_empresas"])
+        self.assertFalse(response.data["mostrar_kpis"])
+        self.assertEqual(
+            response.data["empresas_plataforma"],
+            [{"id": empresa.pk, "nombre": "Acme Industrial", "estado": "activa"}],
         )
-        self.client.force_login(usuario)
-        response = self.client.get(reverse("app:dashboard"))
-        self.assertContains(response, "Ana Pérez")
-        self.assertContains(response, "Empleado")
-        self.assertContains(response, 'method="post"')
-        self.assertContains(response, reverse("cuentas:logout"))
-        self.assertContains(response, empresa.nombre)
-        self.assertContains(response, "overflow-x-hidden")
+
+    def test_superadmin_sin_empresas(self):
+        usuario = make_usuario(None, rol="superadmin")
+        self._auth(usuario)
+        response = self.client.get("/api/v1/dashboard/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["empresas_plataforma"], [])
+        self.assertTrue(response.data["mostrar_empresas"])
 
 
-class DashboardKpisRealesTests(TestCase):
+class DashboardKpisRealesTests(APITestCase):
     def setUp(self):
         self.empresa = make_empresa()
         self.puesto = make_puesto(self.empresa)
@@ -111,6 +108,10 @@ class DashboardKpisRealesTests(TestCase):
             estado=CicloEvaluacion.Estado.ACTIVO,
             nombre="Ciclo Q1",
         )
+
+    def _auth(self, usuario):
+        token, _ = Token.objects.get_or_create(user=usuario)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {token.key}")
 
     def _eval(self, estado, **kwargs):
         empleado = make_usuario(
@@ -145,22 +146,17 @@ class DashboardKpisRealesTests(TestCase):
             sin_evaluador=False,
         )
 
-        self.client.force_login(self.admin)
-        response = self.client.get(reverse("app:dashboard"))
+        self._auth(self.admin)
+        response = self.client.get("/api/v1/dashboard/")
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Ciclo Q1")
-        self.assertNotContains(
-            response,
-            "Los indicadores se van a completar cuando haya un ciclo activo.",
-        )
-        kpis = response.context["kpis"]
+        self.assertEqual(response.data["ciclo_activo"]["nombre"], "Ciclo Q1")
+        self.assertEqual(response.data["ciclo_activo"]["id"], self.ciclo.pk)
+        kpis = response.data["kpis"]
         self.assertEqual(kpis["participantes"], 5)
         self.assertEqual(kpis["auto"], 4)
         self.assertEqual(kpis["supervisor"], 3)
         self.assertEqual(kpis["firmadas"], 2)
         self.assertEqual(kpis["sin_evaluador"], 1)
-        self.assertContains(response, 'data-kpi="participantes"')
-        self.assertContains(response, 'data-widget="kpis"')
 
     def test_kpis_no_mezclan_otra_empresa(self):
         self._eval(Evaluacion.Estado.CERRADA)
@@ -170,9 +166,9 @@ class DashboardKpisRealesTests(TestCase):
         empleado_b = make_usuario(empresa_b, rol="empleado", puesto=puesto_b)
         make_evaluacion(ciclo_b, empleado_b, estado=Evaluacion.Estado.CERRADA)
 
-        self.client.force_login(self.admin)
-        response = self.client.get(reverse("app:dashboard"))
-        kpis = response.context["kpis"]
+        self._auth(self.admin)
+        response = self.client.get("/api/v1/dashboard/")
+        kpis = response.data["kpis"]
         self.assertEqual(kpis["participantes"], 1)
         self.assertEqual(kpis["firmadas"], 1)
 
@@ -184,25 +180,34 @@ class DashboardKpisRealesTests(TestCase):
             first_name="Carla",
             last_name="López",
         )
-        make_evaluacion(
+        evaluacion = make_evaluacion(
             self.ciclo,
             empleado,
             estado=Evaluacion.Estado.PENDIENTE_AUTO,
         )
         self._eval(Evaluacion.Estado.CERRADA)
 
-        self.client.force_login(empleado)
-        response = self.client.get(reverse("app:dashboard"))
+        self._auth(empleado)
+        response = self.client.get("/api/v1/dashboard/")
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Ciclo Q1")
-        self.assertContains(response, 'data-widget="pendientes"')
-        self.assertContains(response, "Completar autoevaluación")
-        self.assertContains(response, 'data-acceso="auto"')
-        self.assertContains(response, 'data-acceso="mias"')
-        self.assertNotContains(response, 'data-widget="kpis"')
-        self.assertNotContains(response, "Sin evaluador")
-        self.assertNotContains(response, "Participantes")
-        self.assertIsNone(response.context["kpis"])
+        self.assertEqual(response.data["ciclo_activo"]["nombre"], "Ciclo Q1")
+        self.assertIsNone(response.data["kpis"])
+        self.assertFalse(response.data["mostrar_kpis"])
+        self.assertTrue(response.data["mostrar_pendientes"])
+        self.assertEqual(len(response.data["pendientes"]), 1)
+        pendiente = response.data["pendientes"][0]
+        self.assertEqual(pendiente["accion"], "Completar autoevaluación")
+        self.assertEqual(pendiente["estado"], Evaluacion.Estado.PENDIENTE_AUTO)
+        self.assertEqual(pendiente["tipo"], "auto")
+        self.assertEqual(
+            pendiente["href"],
+            f"/evaluaciones/{evaluacion.pk}/autoevaluacion",
+        )
+        self.assertEqual(pendiente["ciclo"], "Ciclo Q1")
+        self.assertEqual(
+            _claves(response.data["accesos_rapidos"]),
+            ["mias", "auto"],
+        )
 
     def test_empleado_ve_acceso_a_firmar(self):
         empleado = make_usuario(
@@ -215,14 +220,14 @@ class DashboardKpisRealesTests(TestCase):
             empleado,
             estado=Evaluacion.Estado.PENDIENTE_CONFORMIDAD,
         )
-        self.client.force_login(empleado)
-        response = self.client.get(reverse("app:dashboard"))
-        self.assertContains(response, "Firmar conformidad")
-        self.assertContains(response, 'data-acceso="firmar"')
-        self.assertContains(
-            response,
-            reverse("evaluaciones:resultado", args=[evaluacion.pk]),
+        self._auth(empleado)
+        response = self.client.get("/api/v1/dashboard/")
+        self.assertEqual(response.data["pendientes"][0]["accion"], "Firmar conformidad")
+        self.assertEqual(
+            response.data["pendientes"][0]["href"],
+            f"/evaluaciones/{evaluacion.pk}/resultado",
         )
+        self.assertIn("firmar", _claves(response.data["accesos_rapidos"]))
 
     def test_supervisor_ve_completitud_y_alertas(self):
         supervisor = make_usuario(
@@ -260,20 +265,24 @@ class DashboardKpisRealesTests(TestCase):
             evaluador=supervisor,
             estado=Evaluacion.Estado.AUTO_COMPLETA,
         )
-        self.client.force_login(supervisor)
-        response = self.client.get(reverse("app:dashboard"))
+        self._auth(supervisor)
+        response = self.client.get("/api/v1/dashboard/")
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'data-widget="equipo"')
-        self.assertContains(response, 'data-equipo="completitud"')
-        self.assertContains(response, "50%")
-        self.assertContains(response, 'data-alerta="sin-autoevaluacion"')
-        self.assertContains(response, "Mario Pendiente")
-        self.assertContains(response, reverse("evaluaciones:equipo"))
-        self.assertEqual(response.context["equipo_resumen"]["total"], 2)
-        self.assertEqual(response.context["equipo_resumen"]["completitud"], 50)
-        self.assertEqual(len(response.context["equipo_resumen"]["alertas_sin_auto"]), 1)
-        self.assertNotContains(response, 'data-widget="kpis"')
-        self.assertContains(response, "overflow-x-auto")
+        equipo = response.data["equipo"]
+        self.assertEqual(equipo["total"], 2)
+        self.assertEqual(equipo["completitud"], 50)
+        self.assertEqual(equipo["href"], "/evaluaciones/equipo")
+        self.assertEqual(len(equipo["alertas_sin_auto"]), 1)
+        self.assertEqual(equipo["alertas_sin_auto"][0]["evaluado"], "Mario Pendiente")
+        nombres = {item["evaluado"] for item in equipo["evaluaciones"]}
+        self.assertEqual(nombres, {"Mario Pendiente", "Elena Lista"})
+        por_nombre = {item["evaluado"]: item for item in equipo["evaluaciones"]}
+        self.assertEqual(
+            por_nombre["Mario Pendiente"]["estado_display"],
+            "Pendiente de autoevaluación",
+        )
+        self.assertIsNone(response.data["kpis"])
+        self.assertFalse(response.data["mostrar_kpis"])
 
     def test_pendiente_comparacion_cuenta_en_kpis_y_pendientes(self):
         empleado = make_usuario(
@@ -286,14 +295,14 @@ class DashboardKpisRealesTests(TestCase):
             empleado,
             estado=Evaluacion.Estado.PENDIENTE_COMPARACION,
         )
-        self.client.force_login(self.admin)
-        kpis = self.client.get(reverse("app:dashboard")).context["kpis"]
+        self._auth(self.admin)
+        kpis = self.client.get("/api/v1/dashboard/").data["kpis"]
         self.assertEqual(kpis["auto"], 1)
         self.assertEqual(kpis["supervisor"], 1)
         self.assertEqual(kpis["firmadas"], 0)
 
-        self.client.force_login(empleado)
-        response = self.client.get(reverse("app:dashboard"))
-        self.assertContains(response, "Ver comparación")
-        self.assertContains(response, 'data-acceso="comparacion"')
-
+        self._auth(empleado)
+        response = self.client.get("/api/v1/dashboard/")
+        self.assertEqual(response.data["pendientes"][0]["accion"], "Ver comparación")
+        self.assertEqual(response.data["pendientes"][0]["tipo"], "comparacion")
+        self.assertIn("comparacion", _claves(response.data["accesos_rapidos"]))

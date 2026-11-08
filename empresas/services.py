@@ -1,4 +1,4 @@
-"""Servicios de empresas: CUIT, transiciones de estado y selector de contexto."""
+"""Servicios de empresas: CUIT y transiciones de estado."""
 
 from django.db.utils import OperationalError, ProgrammingError
 
@@ -12,7 +12,6 @@ __all__ = [
     "formatear_cuit",
     "inactivar_empresa",
     "normalizar_cuit",
-    "seleccionar_empresa",
     "suspender_empresa",
     "validar_cuit",
 ]
@@ -73,10 +72,3 @@ def inactivar_empresa(empresa, request=None):
         request=request,
         accion="empresa_inactivacion",
     )
-
-
-def seleccionar_empresa(request, empresa):
-    """Superadmin: deja la empresa activa en sesión (middleware lee empresa_id)."""
-    request.session["empresa_id"] = empresa.pk
-    request.empresa = empresa
-    return empresa

@@ -15,6 +15,20 @@ class AreaQuerySet(EmpresaQuerySet):
 
 class PuestoQuerySet(EmpresaQuerySet):
     def delete(self):
+        from organizacion.services import mensaje_desactivacion_con_hijos, puestos_hijos
+
+        bloqueados = list(
+            self.filter(puestos_hijos__isnull=False).distinct().order_by("nombre")
+        )
+        if bloqueados:
+            raise ValidationError(
+                {
+                    "activo": [
+                        mensaje_desactivacion_con_hijos(list(puestos_hijos(puesto)))
+                        for puesto in bloqueados
+                    ]
+                }
+            )
         n = self.update(activo=False)
         return n, {self.model._meta.label: n}
 
@@ -150,8 +164,23 @@ class Puesto(models.Model):
                 validar_jerarquia_puestos(self, self.puesto_superior)
             except JerarquiaCircularError as exc:
                 raise ValidationError({"puesto_superior": str(exc)}) from exc
+        if self.activo and self.puesto_superior_id and not self.puesto_superior.activo:
+            from organizacion.services import MENSAJE_SUPERIOR_INACTIVO
+
+            raise ValidationError({"puesto_superior": MENSAJE_SUPERIOR_INACTIVO})
+        if self.pk and not self.activo:
+            estaba_activo = (
+                Puesto.objects.filter(pk=self.pk).values_list("activo", flat=True).first()
+            )
+            if estaba_activo:
+                from organizacion.services import validar_desactivacion_puesto
+
+                validar_desactivacion_puesto(self)
 
     def delete(self, using=None, keep_parents=False):
+        from organizacion.services import validar_desactivacion_puesto
+
+        validar_desactivacion_puesto(self)
         self.activo = False
         self.save(update_fields=["activo"])
 

@@ -1,11 +1,13 @@
 from rest_framework import viewsets
-from rest_framework.response import Response
 
 from app.api.permissions import EmpresaActivaPermission, RolPermission
 from app.querysets import for_empresa
 from auditoria.models import AuditLog
-from auditoria.serializers import AuditLogSerializer
+from auditoria.serializers import AuditLogQuerySerializer, AuditLogSerializer
 from cuentas.models import Usuario
+
+
+FILTROS = ("usuario", "accion", "modelo", "fecha_desde", "fecha_hasta")
 
 
 class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
@@ -14,27 +16,39 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     roles_permitidos = [Usuario.Rol.ADMIN_RRHH, Usuario.Rol.SUPERADMIN]
 
     def get_queryset(self):
+        empresa = getattr(self.request, "empresa", None)
         qs = (
             AuditLog.objects.select_related("usuario", "empresa")
             .order_by("-created_at")
         )
-        qs = for_empresa(qs, getattr(self.request, "empresa", None))
-        usuario = self.request.query_params.get("usuario")
-        accion = self.request.query_params.get("accion")
-        modelo = self.request.query_params.get("modelo")
-        desde = self.request.query_params.get("fecha_desde")
-        hasta = self.request.query_params.get("fecha_hasta")
-        if usuario:
-            qs = qs.filter(usuario_id=usuario)
-        if accion:
-            qs = qs.filter(accion=accion)
-        if modelo:
-            qs = qs.filter(modelo=modelo)
-        if desde:
-            qs = qs.filter(created_at__date__gte=desde)
-        if hasta:
-            qs = qs.filter(created_at__date__lte=hasta)
+        qs = for_empresa(qs, empresa)
+        datos = self._filtros(empresa)
+        if datos.get("usuario"):
+            qs = qs.filter(usuario=datos["usuario"])
+        if datos.get("accion"):
+            qs = qs.filter(accion=datos["accion"])
+        if datos.get("modelo"):
+            qs = qs.filter(modelo=datos["modelo"])
+        if datos.get("fecha_desde"):
+            qs = qs.filter(created_at__date__gte=datos["fecha_desde"])
+        if datos.get("fecha_hasta"):
+            qs = qs.filter(created_at__date__lte=datos["fecha_hasta"])
         return qs
+
+    def _filtros(self, empresa):
+        cache = getattr(self, "_filtros_cache", None)
+        if cache is not None:
+            return cache
+        params = {}
+        for clave in FILTROS:
+            valor = self.request.query_params.get(clave, "")
+            if valor != "":
+                params[clave] = valor
+        usuarios = Usuario.objects.for_empresa(empresa).order_by("email")
+        serializer = AuditLogQuerySerializer(data=params, usuarios=usuarios)
+        serializer.is_valid(raise_exception=True)
+        self._filtros_cache = serializer.validated_data
+        return self._filtros_cache
 
     def list(self, request, *args, **kwargs):
         response = super().list(request, *args, **kwargs)

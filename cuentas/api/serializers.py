@@ -1,8 +1,7 @@
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 
-from cuentas.forms import ROLES_GESTION
-from cuentas.models import Usuario
+from cuentas.models import ROLES_GESTION, Usuario
 from cuentas.services import sincronizar_supervisor
 from empresas.models import Empresa
 from organizacion.models import Area, Puesto
@@ -104,8 +103,13 @@ class UsuarioWriteSerializer(serializers.ModelSerializer):
             self.fields.pop("bloqueado", None)
         if empresa is None:
             return
-        self.fields["area"].queryset = Area.objects.filter(empresa=empresa)
-        self.fields["puesto"].queryset = Puesto.objects.filter(empresa=empresa)
+        areas = Area.objects.filter(empresa=empresa)
+        puestos = Puesto.objects.filter(empresa=empresa)
+        if getattr(self.instance, "pk", None) is None:
+            areas = areas.filter(activa=True)
+            puestos = puestos.filter(activo=True)
+        self.fields["area"].queryset = areas
+        self.fields["puesto"].queryset = puestos
         supervisores = Usuario.objects.for_empresa(empresa).filter(is_active=True)
         if getattr(self.instance, "pk", None):
             supervisores = supervisores.exclude(pk=self.instance.pk)

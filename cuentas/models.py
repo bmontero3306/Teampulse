@@ -119,3 +119,10 @@ class Usuario(AbstractUser):
 
     def __str__(self):
         return self.email
+
+
+ROLES_GESTION = [
+    (Usuario.Rol.ADMIN_RRHH, "Admin RRHH"),
+    (Usuario.Rol.SUPERVISOR, "Supervisor"),
+    (Usuario.Rol.EMPLEADO, "Empleado"),
+]

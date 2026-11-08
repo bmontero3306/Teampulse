@@ -1,9 +1,9 @@
 from django.db import IntegrityError, transaction
-from django.test import TestCase
+from django.test import RequestFactory, TestCase
 
 from app.tests.factories import make_empresa, make_usuario
 from cuentas.models import Usuario
-from empresas.forms import EmpresaForm
+from empresas.api.serializers import EmpresaSerializer
 from empresas.models import Empresa
 from empresas.services import activar_empresa, inactivar_empresa, suspender_empresa
 
@@ -15,19 +15,22 @@ class CuitUnicoTests(TestCase):
             with transaction.atomic():
                 make_empresa(cuit="20123456789")
 
-    def test_form_rechaza_cuit_duplicado_con_guiones(self):
+    def test_serializer_rechaza_cuit_duplicado_con_guiones(self):
         make_empresa(cuit="20123456789")
-        form = EmpresaForm(
+        request = RequestFactory().post("/api/v1/empresas/")
+        request.user = Usuario(rol=Usuario.Rol.SUPERADMIN)
+        serializer = EmpresaSerializer(
             data={
                 "nombre": "Otra",
                 "razon_social": "Otra S.A.",
                 "cuit": "20-12345678-9",
                 "email_contacto": "otra@test.com",
                 "estado": Empresa.Estado.ACTIVA,
-            }
+            },
+            context={"request": request},
         )
-        self.assertFalse(form.is_valid())
-        self.assertIn("cuit", form.errors)
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("cuit", serializer.errors)
 
 
 class EstadoEmpresaTests(TestCase):

@@ -1,5 +1,5 @@
-from django.test import TestCase
-from django.urls import reverse
+from rest_framework.authtoken.models import Token
+from rest_framework.test import APITestCase
 
 from app.tests.factories import make_empresa, make_usuario
 from notificaciones.events import USUARIO_CREADO
@@ -7,7 +7,7 @@ from notificaciones.models import Notificacion
 from notificaciones.services import notificar
 
 
-class AislamientoNotificacionesTests(TestCase):
+class AislamientoNotificacionesTests(APITestCase):
     def setUp(self):
         self.empresa_a = make_empresa(nombre="Empresa A")
         self.empresa_b = make_empresa(nombre="Empresa B")
@@ -36,28 +36,29 @@ class AislamientoNotificacionesTests(TestCase):
             empresa=self.empresa_a,
         )
 
+    def _auth(self, usuario):
+        token, _ = Token.objects.get_or_create(user=usuario)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {token.key}")
+
     def test_lista_solo_propias(self):
-        self.client.force_login(self.usuario_a)
-        response = self.client.get(reverse("notificaciones:lista"))
+        self._auth(self.usuario_a)
+        response = self.client.get("/api/v1/notificaciones/")
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Solo A")
-        self.assertNotContains(response, "Solo B")
-        self.assertNotContains(response, "Otro de A")
+        titulos = [item["titulo"] for item in response.data["results"]]
+        self.assertIn("Solo A", titulos)
+        self.assertNotIn("Solo B", titulos)
+        self.assertNotIn("Otro de A", titulos)
 
     def test_no_lee_notificacion_de_otro_usuario(self):
-        self.client.force_login(self.usuario_a)
-        response = self.client.get(
-            reverse("notificaciones:leer", kwargs={"pk": self.notif_otro.pk})
-        )
+        self._auth(self.usuario_a)
+        response = self.client.post(f"/api/v1/notificaciones/{self.notif_otro.pk}/leer/")
         self.assertEqual(response.status_code, 404)
         self.notif_otro.refresh_from_db()
         self.assertFalse(self.notif_otro.leida)
 
     def test_no_lee_notificacion_de_otra_empresa(self):
-        self.client.force_login(self.usuario_a)
-        response = self.client.get(
-            reverse("notificaciones:leer", kwargs={"pk": self.notif_b.pk})
-        )
+        self._auth(self.usuario_a)
+        response = self.client.post(f"/api/v1/notificaciones/{self.notif_b.pk}/leer/")
         self.assertEqual(response.status_code, 404)
 
     def test_queryset_for_empresa(self):

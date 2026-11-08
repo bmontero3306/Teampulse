@@ -5,14 +5,7 @@ from rest_framework.response import Response
 from app.api.permissions import EmpresaActivaPermission, RolPermission
 from auditoria.services import registrar_auditoria
 from cuentas.models import Usuario
-from organizacion.api.serializers import (
-    AreaSerializer,
-    CompetenciaSerializer,
-    PuestoSerializer,
-)
-from organizacion.models import Area, Competencia, Puesto
-from organizacion.services import query_organigrama
-from organizacion.views import (
+from organizacion.access import (
     ROLES_CRUD,
     ROLES_LECTURA,
     _filtrar_areas_lectura,
@@ -21,6 +14,13 @@ from organizacion.views import (
     _puesto_usuario,
     puede_editar_organizacion,
 )
+from organizacion.api.serializers import (
+    AreaSerializer,
+    CompetenciaSerializer,
+    PuestoSerializer,
+)
+from organizacion.models import Area, Competencia, Puesto
+from organizacion.services import query_organigrama
 
 
 def _nodo(puesto):
@@ -28,6 +28,7 @@ def _nodo(puesto):
         "id": puesto.pk,
         "nombre": puesto.nombre,
         "area": puesto.area.nombre if puesto.area_id else None,
+        "descripcion": puesto.descripcion,
         "activo": puesto.activo,
         "hijos": [_nodo(hijo) for hijo in puesto.hijos_organigrama],
     }

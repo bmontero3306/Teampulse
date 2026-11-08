@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from django.db import transaction
+from django.db.models import Q
 from rest_framework import serializers
 
 from cuentas.api.serializers import UsuarioBreveSerializer
@@ -39,6 +40,30 @@ class CriterioSerializer(serializers.ModelSerializer):
             "competencia": {"required": True},
         }
 
+    def validate(self, attrs):
+        tipo = attrs.get("tipo_item") or PlantillaCriterio.TipoItem.ESCALA
+        if tipo == PlantillaCriterio.TipoItem.TEXTO:
+            attrs["ponderacion"] = Decimal("0")
+            attrs["escala_min"] = attrs.get("escala_min") or 1
+            attrs["escala_max"] = attrs.get("escala_max") or 5
+            return attrs
+        escala_min = attrs.get("escala_min")
+        escala_max = attrs.get("escala_max")
+        if escala_min is None:
+            escala_min = 1
+        if escala_max is None:
+            escala_max = 5
+        if escala_min >= escala_max:
+            raise serializers.ValidationError(
+                {"escala_max": "La escala mínima debe ser menor que la máxima."}
+            )
+        ponderacion = attrs.get("ponderacion")
+        if ponderacion is not None and ponderacion < 0:
+            raise serializers.ValidationError(
+                {"ponderacion": "La ponderación no puede ser negativa."}
+            )
+        return attrs
+
 
 class PlantillaSerializer(serializers.ModelSerializer):
     criterios = CriterioSerializer(many=True)
@@ -68,9 +93,21 @@ class PlantillaSerializer(serializers.ModelSerializer):
         empresa = self.context.get("empresa")
         if empresa is None:
             return
-        self.fields["puestos"].child_relation.queryset = Puesto.objects.filter(empresa=empresa)
-        self.fields["criterios"].child.fields["competencia"].queryset = Competencia.objects.filter(
-            empresa=empresa
+        instancia = self.instance if getattr(self.instance, "pk", None) else None
+        puestos = Puesto.objects.filter(empresa=empresa, activo=True)
+        competencias = Competencia.objects.filter(empresa=empresa, activa=True)
+        if instancia is not None:
+            puestos = (
+                Puesto.objects.filter(empresa=empresa)
+                .filter(Q(activo=True) | Q(pk__in=instancia.puestos.values("pk")))
+                .distinct()
+            )
+            competencias = Competencia.objects.filter(empresa=empresa).filter(
+                Q(activa=True) | Q(pk__in=instancia.criterios.values("competencia_id"))
+            )
+        self.fields["puestos"].child_relation.queryset = puestos.order_by("nombre")
+        self.fields["criterios"].child.fields["competencia"].queryset = competencias.order_by(
+            "nombre"
         )
 
     def get_puestos_nombres(self, obj):
@@ -82,6 +119,18 @@ class PlantillaSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {"criterios": "La plantilla necesita al menos un criterio."}
             )
+        if criterios:
+            vistos = set()
+            for datos in criterios:
+                competencia = datos.get("competencia")
+                if competencia is None:
+                    continue
+                pk = getattr(competencia, "pk", competencia)
+                if pk in vistos:
+                    raise serializers.ValidationError(
+                        {"criterios": "No se puede usar la misma competencia más de una vez."}
+                    )
+                vistos.add(pk)
         return attrs
 
     @transaction.atomic
@@ -170,8 +219,49 @@ class CicloSerializer(serializers.ModelSerializer):
         empresa = self.context.get("empresa")
         if empresa is None:
             return
-        self.fields["plantilla_default"].queryset = PlantillaEvaluacion.objects.for_empresa(empresa)
-        self.fields["areas"].child_relation.queryset = Area.objects.filter(empresa=empresa)
+        instancia = self.instance if getattr(self.instance, "pk", None) else None
+        plantillas = PlantillaEvaluacion.objects.for_empresa(empresa).filter(activa=True)
+        areas = Area.objects.filter(empresa=empresa, activa=True)
+        if instancia is not None:
+            plantillas = PlantillaEvaluacion.objects.for_empresa(empresa).filter(
+                Q(activa=True) | Q(pk=instancia.plantilla_default_id)
+            )
+            areas = (
+                Area.objects.filter(empresa=empresa)
+                .filter(Q(activa=True) | Q(pk__in=instancia.areas.values("pk")))
+                .distinct()
+            )
+        self.fields["plantilla_default"].queryset = plantillas.order_by("nombre")
+        self.fields["areas"].child_relation.queryset = areas.order_by("nombre")
+
+    def validate(self, attrs):
+        inicio = attrs.get("fecha_inicio")
+        cierre = attrs.get("fecha_cierre")
+        if self.instance is not None and getattr(self.instance, "pk", None):
+            if inicio is None:
+                inicio = self.instance.fecha_inicio
+            if cierre is None:
+                cierre = self.instance.fecha_cierre
+        if inicio and cierre and cierre < inicio:
+            raise serializers.ValidationError(
+                {"fecha_cierre": "La fecha de cierre no puede ser anterior al inicio."}
+            )
+        empresa = self.context.get("empresa")
+        plantilla = attrs.get("plantilla_default")
+        if (
+            plantilla is not None
+            and empresa is not None
+            and plantilla.empresa_id != empresa.pk
+        ):
+            raise serializers.ValidationError(
+                {"plantilla_default": "La plantilla no pertenece a esta empresa."}
+            )
+        areas = attrs.get("areas") or []
+        if empresa is not None and any(area.empresa_id != empresa.pk for area in areas):
+            raise serializers.ValidationError(
+                {"areas": "No se pueden asociar áreas de otra empresa."}
+            )
+        return attrs
 
     def create(self, validated_data):
         areas = validated_data.pop("areas", [])
@@ -204,6 +294,15 @@ class CicloSerializer(serializers.ModelSerializer):
 class ReprogramarSerializer(serializers.Serializer):
     fecha_inicio = serializers.DateField()
     fecha_cierre = serializers.DateField()
+
+    def validate(self, attrs):
+        inicio = attrs.get("fecha_inicio")
+        cierre = attrs.get("fecha_cierre")
+        if inicio and cierre and cierre < inicio:
+            raise serializers.ValidationError(
+                {"fecha_cierre": "La fecha de cierre no puede ser anterior al inicio."}
+            )
+        return attrs
 
 
 class RespuestaSerializer(serializers.ModelSerializer):

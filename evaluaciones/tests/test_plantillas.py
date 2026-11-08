@@ -2,7 +2,8 @@ from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.test import TestCase
-from django.urls import reverse
+from rest_framework.authtoken.models import Token
+from rest_framework.test import APITestCase
 
 from app.tests.factories import (
     make_competencia,
@@ -18,26 +19,33 @@ from evaluaciones.models import (
 from evaluaciones.services import duplicar_plantilla
 
 
-def _datos_formset(competencia, extra=None):
+def _auth(client, usuario):
+    token, _ = Token.objects.get_or_create(user=usuario)
+    client.credentials(HTTP_AUTHORIZATION=f"Token {token.key}")
+
+
+def _payload(competencia, **extra):
     datos = {
         "nombre": "Plantilla técnica",
         "tipo": PlantillaEvaluacion.Tipo.TECNICA,
         "descripcion": "",
-        "activa": "on",
-        "criterios-TOTAL_FORMS": "1",
-        "criterios-INITIAL_FORMS": "0",
-        "criterios-MIN_NUM_FORMS": "0",
-        "criterios-MAX_NUM_FORMS": "1000",
-        "criterios-0-competencia": str(competencia.pk),
-        "criterios-0-categoria": "",
-        "criterios-0-tipo_item": "escala",
-        "criterios-0-orden": "1",
-        "criterios-0-escala_min": "1",
-        "criterios-0-escala_max": "5",
-        "criterios-0-ponderacion": "100",
+        "activa": True,
+        "puestos": [],
+        "criterios": [
+            {
+                "competencia": competencia.pk,
+                "categoria": "",
+                "tipo_item": "escala",
+                "orden": 1,
+                "escala_min": 1,
+                "escala_max": 5,
+                "ponderacion": "100",
+                "comentario_empleado_obligatorio": True,
+                "comentario_supervisor_obligatorio": True,
+            }
+        ],
     }
-    if extra:
-        datos.update(extra)
+    datos.update(extra)
     return datos
 
 
@@ -93,7 +101,7 @@ class DuplicarPlantillaTests(TestCase):
         self.assertEqual(self.plantilla.criterios.count(), 1)
 
 
-class PlantillaPuestoTenantTests(TestCase):
+class PlantillaPuestoTenantTests(APITestCase):
     def setUp(self):
         self.empresa_a = make_empresa()
         self.empresa_b = make_empresa()
@@ -126,25 +134,23 @@ class PlantillaPuestoTenantTests(TestCase):
             ).exists()
         )
 
-    def test_vista_no_asocia_puesto_de_otra_empresa(self):
+    def test_api_no_asocia_puesto_de_otra_empresa(self):
         admin = make_usuario(self.empresa_a, rol="admin_rrhh")
         competencia = make_competencia(self.empresa_a)
-        self.client.force_login(admin)
-        datos = _datos_formset(
-            competencia,
-            extra={"puestos": [str(self.puesto_b.pk)]},
+        _auth(self.client, admin)
+        response = self.client.post(
+            "/api/v1/plantillas/",
+            _payload(competencia, puestos=[self.puesto_b.pk]),
+            format="json",
         )
-        response = self.client.post(reverse("evaluaciones:plantilla_crear"), datos)
-        self.assertEqual(response.status_code, 200)
-        self.assertFalse(
-            PlantillaPuesto.objects.filter(puesto=self.puesto_b).exists()
-        )
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertFalse(PlantillaPuesto.objects.filter(puesto=self.puesto_b).exists())
         self.assertFalse(
             PlantillaEvaluacion.objects.filter(nombre="Plantilla técnica").exists()
         )
 
 
-class PlantillaValidacionTests(TestCase):
+class PlantillaValidacionTests(APITestCase):
     def setUp(self):
         self.empresa = make_empresa()
         self.competencia = make_competencia(self.empresa)
@@ -193,26 +199,54 @@ class PlantillaValidacionTests(TestCase):
         self.assertEqual(criterio.ponderacion, Decimal("0"))
         self.assertTrue(criterio.es_texto)
 
-    def test_vista_crea_criterio_solo_texto(self):
+    def test_api_rechaza_escala_invertida(self):
         admin = make_usuario(self.empresa, rol="admin_rrhh")
-        self.client.force_login(admin)
-        datos = _datos_formset(
-            self.competencia,
-            extra={
-                "criterios-0-categoria": "Cierre",
-                "criterios-0-tipo_item": "texto",
-                "criterios-0-ponderacion": "15",
-            },
+        _auth(self.client, admin)
+        criterios = _payload(self.competencia)["criterios"]
+        criterios[0]["escala_min"] = 5
+        criterios[0]["escala_max"] = 5
+        response = self.client.post(
+            "/api/v1/plantillas/",
+            _payload(self.competencia, criterios=criterios),
+            format="json",
         )
-        response = self.client.post(reverse("evaluaciones:plantilla_crear"), datos)
-        self.assertEqual(response.status_code, 302)
-        criterio = PlantillaCriterio.objects.get(competencia=self.competencia)
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertIn("menor que la máxima", response.content.decode())
+
+    def test_api_rechaza_competencia_repetida(self):
+        admin = make_usuario(self.empresa, rol="admin_rrhh")
+        _auth(self.client, admin)
+        fila = _payload(self.competencia)["criterios"][0]
+        response = self.client.post(
+            "/api/v1/plantillas/",
+            _payload(self.competencia, criterios=[fila, {**fila, "orden": 2}]),
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertIn("misma competencia", response.content.decode())
+
+    def test_api_crea_criterio_solo_texto(self):
+        admin = make_usuario(self.empresa, rol="admin_rrhh")
+        _auth(self.client, admin)
+        criterios = _payload(self.competencia)["criterios"]
+        criterios[0]["categoria"] = "Cierre"
+        criterios[0]["tipo_item"] = "texto"
+        criterios[0]["ponderacion"] = "15"
+        response = self.client.post(
+            "/api/v1/plantillas/",
+            _payload(self.competencia, criterios=criterios),
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+        criterio = PlantillaCriterio.objects.get(competencia=self.competencia, categoria="Cierre")
         self.assertEqual(criterio.tipo_item, PlantillaCriterio.TipoItem.TEXTO)
         self.assertEqual(criterio.categoria, "Cierre")
         self.assertEqual(criterio.ponderacion, Decimal("0"))
+        self.assertTrue(criterio.comentario_empleado_obligatorio)
+        self.assertTrue(criterio.comentario_supervisor_obligatorio)
 
 
-class PlantillaPermisosTests(TestCase):
+class PlantillaPermisosTests(APITestCase):
     def setUp(self):
         self.empresa = make_empresa()
         self.plantilla = PlantillaEvaluacion.objects.create(
@@ -223,40 +257,43 @@ class PlantillaPermisosTests(TestCase):
 
     def test_empleado_no_accede(self):
         empleado = make_usuario(self.empresa, rol="empleado")
-        self.client.force_login(empleado)
-        response = self.client.get(reverse("evaluaciones:plantillas"))
+        _auth(self.client, empleado)
+        response = self.client.get("/api/v1/plantillas/")
         self.assertEqual(response.status_code, 403)
 
     def test_supervisor_lee_y_no_crea(self):
         supervisor = make_usuario(self.empresa, rol="supervisor")
-        self.client.force_login(supervisor)
-        lista = self.client.get(reverse("evaluaciones:plantillas"))
+        _auth(self.client, supervisor)
+        lista = self.client.get("/api/v1/plantillas/")
         self.assertEqual(lista.status_code, 200)
-        self.assertContains(lista, "Visible")
-        self.assertNotContains(lista, "Nueva plantilla")
-        crear = self.client.get(reverse("evaluaciones:plantilla_crear"))
-        self.assertEqual(crear.status_code, 403)
-        duplicar = self.client.post(
-            reverse("evaluaciones:plantilla_duplicar", args=[self.plantilla.pk])
+        nombres = [item["nombre"] for item in lista.data["results"]]
+        self.assertIn("Visible", nombres)
+        crear = self.client.post(
+            "/api/v1/plantillas/",
+            _payload(make_competencia(self.empresa)),
+            format="json",
         )
+        self.assertEqual(crear.status_code, 403)
+        duplicar = self.client.post(f"/api/v1/plantillas/{self.plantilla.pk}/duplicar/")
         self.assertEqual(duplicar.status_code, 403)
+        self.assertEqual(PlantillaEvaluacion.objects.filter(duplicada_desde=self.plantilla).count(), 0)
 
     def test_admin_rrhh_crud(self):
         admin = make_usuario(self.empresa, rol="admin_rrhh")
         competencia = make_competencia(self.empresa)
-        self.client.force_login(admin)
-        lista = self.client.get(reverse("evaluaciones:plantillas"))
+        puesto = make_puesto(self.empresa, nombre="Analista")
+        _auth(self.client, admin)
+        lista = self.client.get("/api/v1/plantillas/")
         self.assertEqual(lista.status_code, 200)
-        crear = self.client.get(reverse("evaluaciones:plantilla_crear"))
-        self.assertEqual(crear.status_code, 200)
         response = self.client.post(
-            reverse("evaluaciones:plantilla_crear"),
-            _datos_formset(competencia),
+            "/api/v1/plantillas/",
+            _payload(competencia, puestos=[puesto.pk]),
+            format="json",
         )
-        self.assertEqual(response.status_code, 302)
-        self.assertTrue(
-            PlantillaEvaluacion.objects.filter(nombre="Plantilla técnica").exists()
-        )
+        self.assertEqual(response.status_code, 201, response.content)
+        plantilla = PlantillaEvaluacion.objects.get(nombre="Plantilla técnica")
+        self.assertEqual(list(plantilla.puestos.all()), [puesto])
+        self.assertEqual(response.data["criterios"][0]["categoria"], "")
 
     def test_listado_filtra_por_empresa(self):
         otra = make_empresa()
@@ -266,42 +303,8 @@ class PlantillaPermisosTests(TestCase):
             tipo=PlantillaEvaluacion.Tipo.TECNICA,
         )
         admin = make_usuario(self.empresa, rol="admin_rrhh")
-        self.client.force_login(admin)
-        response = self.client.get(reverse("evaluaciones:plantillas"))
-        self.assertContains(response, "Visible")
-        self.assertNotContains(response, "Ajena")
-
-
-class PlantillaFormularioUXTests(TestCase):
-    def setUp(self):
-        self.empresa = make_empresa()
-        self.admin = make_usuario(self.empresa, rol="admin_rrhh")
-        self.competencia = make_competencia(self.empresa, nombre="Comunicación")
-        self.puesto = make_puesto(self.empresa, nombre="Analista")
-        self.client.force_login(self.admin)
-
-    def test_formulario_tiene_buscador_de_puestos_y_labels_claros(self):
-        response = self.client.get(reverse("evaluaciones:plantilla_crear"))
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Buscar puesto")
-        self.assertContains(response, "Analista")
-        self.assertContains(response, "Agregar criterio")
-        self.assertContains(response, "Editar")
-        self.assertContains(response, "Devolución del empleado obligatoria")
-        self.assertContains(response, "Devolución del supervisor obligatoria")
-        self.assertContains(response, "Quitar de la plantilla")
-        self.assertContains(response, "Crear una competencia nueva")
-        self.assertNotContains(response, "Dev. emp.")
-        self.assertNotContains(response, "Ctrl o Cmd")
-
-    def test_asocia_puestos_de_la_empresa(self):
-        response = self.client.post(
-            reverse("evaluaciones:plantilla_crear"),
-            _datos_formset(
-                self.competencia,
-                extra={"puestos": [str(self.puesto.pk)]},
-            ),
-        )
-        self.assertEqual(response.status_code, 302)
-        plantilla = PlantillaEvaluacion.objects.get(nombre="Plantilla técnica")
-        self.assertEqual(list(plantilla.puestos.all()), [self.puesto])
+        _auth(self.client, admin)
+        response = self.client.get("/api/v1/plantillas/")
+        nombres = [item["nombre"] for item in response.data["results"]]
+        self.assertIn("Visible", nombres)
+        self.assertNotIn("Ajena", nombres)

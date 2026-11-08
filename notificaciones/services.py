@@ -88,3 +88,11 @@ def _enviar_email(notificacion, usuario):
             notificacion.pk,
             exc,
         )
+
+
+def _queryset_usuario(request):
+    qs = Notificacion.objects.de_usuario(request.user)
+    empresa = getattr(request, "empresa", None)
+    if empresa is not None:
+        qs = qs.filter(empresa=empresa)
+    return qs

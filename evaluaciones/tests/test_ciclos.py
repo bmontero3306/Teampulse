@@ -1,8 +1,8 @@
 from datetime import date, timedelta
 from decimal import Decimal
 
-from django.test import TestCase
-from django.urls import reverse
+from rest_framework.authtoken.models import Token
+from rest_framework.test import APITestCase
 
 from app.tests.factories import (
     make_area,
@@ -44,49 +44,7 @@ def _criterio(plantilla, competencia, **kwargs):
     return PlantillaCriterio.objects.create(**datos)
 
 
-def _formset_auto(evaluacion, puntaje=4, comentario="Ok", accion="enviar"):
-    items = list(evaluacion.respuestas.order_by("criterio__orden", "pk"))
-    data = {
-        "items-TOTAL_FORMS": str(len(items)),
-        "items-INITIAL_FORMS": str(len(items)),
-        "items-MIN_NUM_FORMS": "0",
-        "items-MAX_NUM_FORMS": "1000",
-        "accion": accion,
-    }
-    for i, item in enumerate(items):
-        data[f"items-{i}-id"] = str(item.pk)
-        data[f"items-{i}-puntaje_empleado"] = "" if puntaje is None else str(puntaje)
-        data[f"items-{i}-comentario_empleado"] = comentario
-    return data
-
-
-def _formset_sup(
-    evaluacion,
-    puntaje=5,
-    comentario="Bien",
-    feedback="Feedback",
-    accion="cerrar",
-    habilitar_reunion=False,
-):
-    items = list(evaluacion.respuestas.order_by("criterio__orden", "pk"))
-    data = {
-        "items-TOTAL_FORMS": str(len(items)),
-        "items-INITIAL_FORMS": str(len(items)),
-        "items-MIN_NUM_FORMS": "0",
-        "items-MAX_NUM_FORMS": "1000",
-        "feedback_supervisor": feedback,
-        "accion": accion,
-    }
-    if habilitar_reunion:
-        data["habilitar_reunion"] = "on"
-    for i, item in enumerate(items):
-        data[f"items-{i}-id"] = str(item.pk)
-        data[f"items-{i}-puntaje_supervisor"] = "" if puntaje is None else str(puntaje)
-        data[f"items-{i}-comentario_supervisor"] = comentario
-    return data
-
-
-class CicloBaseTestCase(TestCase):
+class CicloBaseTestCase(APITestCase):
     def setUp(self):
         self.empresa = make_empresa()
         self.area = make_area(self.empresa, nombre="Operaciones")
@@ -123,6 +81,10 @@ class CicloBaseTestCase(TestCase):
             plantilla_default=self.plantilla,
             nombre="Ciclo Q1",
         )
+
+    def _auth(self, usuario):
+        token, _ = Token.objects.get_or_create(user=usuario)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {token.key}")
 
 
 class ActivarCicloTests(CicloBaseTestCase):
@@ -202,36 +164,93 @@ class ActivarCicloTests(CicloBaseTestCase):
         ciclo_b = make_ciclo(
             empresa_b, plantilla_default=plantilla_b, nombre="Ciclo secreto B"
         )
-        self.client.force_login(self.admin)
-        lista = self.client.get(reverse("evaluaciones:ciclos"))
-        self.assertContains(lista, "Ciclo Q1")
-        self.assertNotContains(lista, "Ciclo secreto B")
-        detalle = self.client.get(
-            reverse("evaluaciones:ciclo_detalle", args=[ciclo_b.pk])
-        )
+        self._auth(self.admin)
+        lista = self.client.get("/api/v1/ciclos/")
+        self.assertEqual(lista.status_code, 200)
+        nombres = [item["nombre"] for item in lista.data["results"]]
+        self.assertIn("Ciclo Q1", nombres)
+        self.assertNotIn("Ciclo secreto B", nombres)
+        detalle = self.client.get(f"/api/v1/ciclos/{ciclo_b.pk}/")
         self.assertEqual(detalle.status_code, 404)
 
-    def test_admin_crea_y_activa_por_vista(self):
-        self.client.force_login(self.admin)
+    def test_admin_crea_y_activa_por_api(self):
+        self._auth(self.admin)
         crear = self.client.post(
-            reverse("evaluaciones:ciclo_crear"),
+            "/api/v1/ciclos/",
             {
                 "nombre": "Ciclo UI",
                 "fecha_inicio": date.today().isoformat(),
                 "fecha_cierre": (date.today() + timedelta(days=10)).isoformat(),
-                "plantilla_default": str(self.plantilla.pk),
+                "plantilla_default": self.plantilla.pk,
                 "criterios_generales": "Criterios",
             },
+            format="json",
         )
-        self.assertEqual(crear.status_code, 302)
+        self.assertEqual(crear.status_code, 201, crear.content)
         ciclo = CicloEvaluacion.objects.get(nombre="Ciclo UI")
         self.assertEqual(ciclo.estado, CicloEvaluacion.Estado.BORRADOR)
-        activar = self.client.post(
-            reverse("evaluaciones:ciclo_activar", args=[ciclo.pk])
-        )
-        self.assertEqual(activar.status_code, 302)
+        activar = self.client.post(f"/api/v1/ciclos/{ciclo.pk}/activar/")
+        self.assertEqual(activar.status_code, 200, activar.content)
         ciclo.refresh_from_db()
         self.assertEqual(ciclo.estado, CicloEvaluacion.Estado.ACTIVO)
+
+    def test_api_rechaza_cierre_anterior_al_inicio(self):
+        self._auth(self.admin)
+        response = self.client.post(
+            "/api/v1/ciclos/",
+            {
+                "nombre": "Ciclo inválido",
+                "fecha_inicio": date.today().isoformat(),
+                "fecha_cierre": (date.today() - timedelta(days=1)).isoformat(),
+                "plantilla_default": self.plantilla.pk,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertIn("anterior al inicio", response.content.decode())
+        self.assertFalse(CicloEvaluacion.objects.filter(nombre="Ciclo inválido").exists())
+
+    def test_api_rechaza_plantilla_inactiva_o_de_otra_empresa(self):
+        self._auth(self.admin)
+        inactiva = make_plantilla(self.empresa, nombre="Inactiva", activa=False)
+        response = self.client.post(
+            "/api/v1/ciclos/",
+            {
+                "nombre": "Con inactiva",
+                "fecha_inicio": date.today().isoformat(),
+                "fecha_cierre": (date.today() + timedelta(days=5)).isoformat(),
+                "plantilla_default": inactiva.pk,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400, response.content)
+        otra = make_empresa()
+        ajena = make_plantilla(otra, nombre="Ajena")
+        response = self.client.post(
+            "/api/v1/ciclos/",
+            {
+                "nombre": "Con ajena",
+                "fecha_inicio": date.today().isoformat(),
+                "fecha_cierre": (date.today() + timedelta(days=5)).isoformat(),
+                "plantilla_default": ajena.pk,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertFalse(CicloEvaluacion.objects.filter(nombre="Con ajena").exists())
+
+    def test_reprogramar_rechaza_fechas_invertidas(self):
+        self._auth(self.admin)
+        response = self.client.post(
+            f"/api/v1/ciclos/{self.ciclo.pk}/reprogramar/",
+            {
+                "fecha_inicio": date.today().isoformat(),
+                "fecha_cierre": (date.today() - timedelta(days=2)).isoformat(),
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertIn("anterior al inicio", response.content.decode())
 
 
 class CancelarYPausarTests(CicloBaseTestCase):
@@ -286,7 +305,7 @@ class ReasignarEvaluadorTests(CicloBaseTestCase):
         self.assertFalse(evaluacion.sin_evaluador)
         self.assertEqual(evaluacion.evaluador_id, self.supervisor.pk)
 
-    def test_reasignar_por_vista(self):
+    def test_reasignar_por_api(self):
         self.empleado.supervisor = None
         self.empleado.save(update_fields=["supervisor"])
         self.puesto.puesto_superior = None
@@ -294,17 +313,18 @@ class ReasignarEvaluadorTests(CicloBaseTestCase):
         activar_ciclo(self.ciclo, self.admin)
         evaluacion = Evaluacion.objects.get(ciclo=self.ciclo, evaluado=self.empleado)
         self.assertTrue(evaluacion.sin_evaluador)
-        self.client.force_login(self.admin)
-        detalle = self.client.get(
-            reverse("evaluaciones:ciclo_detalle", args=[self.ciclo.pk])
-        )
-        self.assertContains(detalle, "Asignar")
+        self._auth(self.admin)
+        candidatos = self.client.get(f"/api/v1/evaluaciones/{evaluacion.pk}/reasignar/")
+        self.assertEqual(candidatos.status_code, 200, candidatos.content)
+        ids = [item["id"] for item in candidatos.data]
+        self.assertIn(self.supervisor.pk, ids)
+        self.assertNotIn(self.empleado.pk, ids)
         response = self.client.post(
-            reverse("evaluaciones:reasignar", args=[evaluacion.pk]),
-            {"evaluador": str(self.supervisor.pk)},
+            f"/api/v1/evaluaciones/{evaluacion.pk}/reasignar/",
+            {"evaluador": self.supervisor.pk},
+            format="json",
         )
-        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.status_code, 200, response.content)
         evaluacion.refresh_from_db()
         self.assertFalse(evaluacion.sin_evaluador)
         self.assertEqual(evaluacion.evaluador_id, self.supervisor.pk)
-

@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from auditoria.models import AuditLog
+from cuentas.models import Usuario
 
 
 class AuditLogSerializer(serializers.ModelSerializer):
@@ -14,6 +15,7 @@ class AuditLogSerializer(serializers.ModelSerializer):
             "created_at",
             "usuario",
             "usuario_email",
+            "empresa",
             "accion",
             "accion_display",
             "modelo",
@@ -22,3 +24,20 @@ class AuditLogSerializer(serializers.ModelSerializer):
             "ip",
             "user_agent",
         )
+
+
+class AuditLogQuerySerializer(serializers.Serializer):
+    usuario = serializers.PrimaryKeyRelatedField(
+        queryset=Usuario.objects.none(),
+        required=False,
+        allow_null=True,
+    )
+    accion = serializers.CharField(required=False, allow_blank=True)
+    modelo = serializers.CharField(required=False, allow_blank=True)
+    fecha_desde = serializers.DateField(required=False, allow_null=True)
+    fecha_hasta = serializers.DateField(required=False, allow_null=True)
+
+    def __init__(self, *args, usuarios=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if usuarios is not None:
+            self.fields["usuario"].queryset = usuarios

@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from django.urls import reverse
+from django.utils import timezone
 
 from app.tests.factories import (
     make_competencia,
@@ -21,12 +21,18 @@ from evaluaciones.services import (
     guardar_eval_supervisor,
     registrar_reunion_feedback,
 )
-from evaluaciones.tests.test_ciclos import (
-    CicloBaseTestCase,
-    _formset_auto,
-    _formset_sup,
-    _criterio,
-)
+from evaluaciones.tests.test_ciclos import CicloBaseTestCase, _criterio
+
+
+def _respuestas(evaluacion, puntaje_field, comentario_field, puntaje, comentario):
+    return [
+        {
+            "id": item.pk,
+            puntaje_field: puntaje,
+            comentario_field: comentario,
+        }
+        for item in evaluacion.respuestas.order_by("criterio__orden", "pk")
+    ]
 
 
 class AislamientoEmpleadoTests(CicloBaseTestCase):
@@ -44,19 +50,18 @@ class AislamientoEmpleadoTests(CicloBaseTestCase):
         eval_propia = Evaluacion.objects.get(ciclo=self.ciclo, evaluado=self.empleado)
         eval_ajena = Evaluacion.objects.get(ciclo=self.ciclo, evaluado=otro)
 
-        self.client.force_login(self.empleado)
-        mias = self.client.get(reverse("evaluaciones:mias"))
+        self._auth(self.empleado)
+        mias = self.client.get("/api/v1/evaluaciones/mias/")
         self.assertEqual(mias.status_code, 200)
-        self.assertContains(mias, "Ciclo Q1")
-        self.assertNotContains(mias, otro.email)
+        nombres = [item["ciclo_nombre"] for item in mias.data]
+        self.assertIn("Ciclo Q1", nombres)
+        self.assertNotIn(otro.email, mias.content.decode())
 
-        propia = self.client.get(reverse("evaluaciones:auto", args=[eval_propia.pk]))
+        propia = self.client.get(f"/api/v1/evaluaciones/{eval_propia.pk}/autoevaluacion/")
         self.assertEqual(propia.status_code, 200)
-        ajena = self.client.get(reverse("evaluaciones:auto", args=[eval_ajena.pk]))
+        ajena = self.client.get(f"/api/v1/evaluaciones/{eval_ajena.pk}/autoevaluacion/")
         self.assertEqual(ajena.status_code, 403)
-        resultado_ajeno = self.client.get(
-            reverse("evaluaciones:resultado", args=[eval_ajena.pk])
-        )
+        resultado_ajeno = self.client.get(f"/api/v1/evaluaciones/{eval_ajena.pk}/resultado/")
         self.assertEqual(resultado_ajeno.status_code, 403)
 
     def test_tenant_no_ve_evaluaciones_de_otra_empresa(self):
@@ -70,8 +75,8 @@ class AislamientoEmpleadoTests(CicloBaseTestCase):
         activar_ciclo(ciclo_b, admin_b)
         eval_b = Evaluacion.objects.get(ciclo=ciclo_b, evaluado=empleado_b)
 
-        self.client.force_login(self.empleado)
-        response = self.client.get(reverse("evaluaciones:auto", args=[eval_b.pk]))
+        self._auth(self.empleado)
+        response = self.client.get(f"/api/v1/evaluaciones/{eval_b.pk}/autoevaluacion/")
         self.assertEqual(response.status_code, 404)
 
 
@@ -95,14 +100,20 @@ class SupervisorAntesDeAutoTests(CicloBaseTestCase):
                 self.supervisor,
             )
 
-        self.client.force_login(self.supervisor)
-        get_resp = self.client.get(
-            reverse("evaluaciones:supervisar", args=[evaluacion.pk])
-        )
+        self._auth(self.supervisor)
+        get_resp = self.client.get(f"/api/v1/evaluaciones/{evaluacion.pk}/supervisar/")
         self.assertEqual(get_resp.status_code, 403)
-        post_resp = self.client.post(
-            reverse("evaluaciones:supervisar", args=[evaluacion.pk]),
-            _formset_sup(evaluacion),
+        post_resp = self.client.put(
+            f"/api/v1/evaluaciones/{evaluacion.pk}/supervisar/",
+            {
+                "cerrar": True,
+                "habilitar_reunion": False,
+                "feedback_supervisor": "Feedback",
+                "respuestas": _respuestas(
+                    evaluacion, "puntaje_supervisor", "comentario_supervisor", 5, "Bien"
+                ),
+            },
+            format="json",
         )
         self.assertEqual(post_resp.status_code, 403)
 
@@ -111,29 +122,47 @@ class AutoevaluacionYFirmaTests(CicloBaseTestCase):
     def test_guardar_borrador_y_enviar(self):
         activar_ciclo(self.ciclo, self.admin)
         evaluacion = Evaluacion.objects.get(ciclo=self.ciclo, evaluado=self.empleado)
-        self.client.force_login(self.empleado)
-        borrador = self.client.post(
-            reverse("evaluaciones:auto", args=[evaluacion.pk]),
-            _formset_auto(evaluacion, puntaje=3, accion="borrador"),
+        self._auth(self.empleado)
+        borrador = self.client.put(
+            f"/api/v1/evaluaciones/{evaluacion.pk}/autoevaluacion/",
+            {
+                "enviar": False,
+                "respuestas": _respuestas(
+                    evaluacion, "puntaje_empleado", "comentario_empleado", 3, "Ok"
+                ),
+            },
+            format="json",
         )
-        self.assertEqual(borrador.status_code, 302)
+        self.assertEqual(borrador.status_code, 200, borrador.content)
         evaluacion.refresh_from_db()
         self.assertEqual(evaluacion.estado, Evaluacion.Estado.AUTO_BORRADOR)
 
-        enviar = self.client.post(
-            reverse("evaluaciones:auto", args=[evaluacion.pk]),
-            _formset_auto(evaluacion, puntaje=4, comentario="Listo", accion="enviar"),
+        enviar = self.client.put(
+            f"/api/v1/evaluaciones/{evaluacion.pk}/autoevaluacion/",
+            {
+                "enviar": True,
+                "respuestas": _respuestas(
+                    evaluacion, "puntaje_empleado", "comentario_empleado", 4, "Listo"
+                ),
+            },
+            format="json",
         )
-        self.assertEqual(enviar.status_code, 302)
+        self.assertEqual(enviar.status_code, 200, enviar.content)
         evaluacion.refresh_from_db()
         self.assertEqual(evaluacion.estado, Evaluacion.Estado.AUTO_COMPLETA)
         self.assertIsNotNone(evaluacion.enviada_auto_en)
 
-        otra = self.client.post(
-            reverse("evaluaciones:auto", args=[evaluacion.pk]),
-            _formset_auto(evaluacion, puntaje=1, accion="enviar"),
+        otra = self.client.put(
+            f"/api/v1/evaluaciones/{evaluacion.pk}/autoevaluacion/",
+            {
+                "enviar": True,
+                "respuestas": _respuestas(
+                    evaluacion, "puntaje_empleado", "comentario_empleado", 1, "No"
+                ),
+            },
+            format="json",
         )
-        self.assertEqual(otra.status_code, 200)
+        self.assertEqual(otra.status_code, 400)
         evaluacion.refresh_from_db()
         self.assertEqual(evaluacion.estado, Evaluacion.Estado.AUTO_COMPLETA)
         self.assertEqual(evaluacion.respuestas.get().puntaje_empleado, 4)
@@ -158,8 +187,6 @@ class AutoevaluacionYFirmaTests(CicloBaseTestCase):
 
     def test_firma_genera_hash_estable_y_estado_final(self):
         from datetime import datetime
-
-        from django.utils import timezone
 
         ts = datetime(2026, 4, 1, 12, 0, tzinfo=timezone.get_current_timezone())
         h1 = calcular_firma_hash(10, 20, ts, [4, 5])
@@ -227,20 +254,20 @@ class AutoevaluacionYFirmaTests(CicloBaseTestCase):
             True,
             self.supervisor,
         )
-        self.client.force_login(self.empleado)
+        self._auth(self.empleado)
         response = self.client.post(
-            reverse("evaluaciones:firmar", args=[evaluacion.pk]),
-            {"accion": "observacion", "observacion": "No coincido con el puntaje."},
+            f"/api/v1/evaluaciones/{evaluacion.pk}/firmar/",
+            {"observacion": "No coincido con el puntaje."},
+            format="json",
         )
-        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.status_code, 200, response.content)
         evaluacion.refresh_from_db()
         self.assertEqual(evaluacion.estado, Evaluacion.Estado.CERRADA_CON_OBS)
         self.assertIn("No coincido", evaluacion.comentario_empleado_cierre)
-        resultado = self.client.get(
-            reverse("evaluaciones:resultado", args=[evaluacion.pk])
-        )
-        self.assertContains(resultado, evaluacion.firma_hash)
-        self.assertContains(resultado, "Comprobante de firma")
+        resultado = self.client.get(f"/api/v1/evaluaciones/{evaluacion.pk}/resultado/")
+        self.assertEqual(resultado.status_code, 200)
+        self.assertEqual(resultado.data["firma_hash"], evaluacion.firma_hash)
+        self.assertIn("No coincido", resultado.data["comentario_empleado_cierre"])
 
     def test_cerrar_supervisor_exige_feedback(self):
         activar_ciclo(self.ciclo, self.admin)
@@ -266,49 +293,50 @@ class PermisosRolTests(CicloBaseTestCase):
     def test_empleado_403_en_ciclos_y_equipo(self):
         activar_ciclo(self.ciclo, self.admin)
         evaluacion = Evaluacion.objects.get(ciclo=self.ciclo, evaluado=self.empleado)
-        self.client.force_login(self.empleado)
-        self.assertEqual(self.client.get(reverse("evaluaciones:ciclos")).status_code, 403)
+        self._auth(self.empleado)
+        self.assertEqual(self.client.get("/api/v1/ciclos/").status_code, 403)
+        self.assertEqual(self.client.post("/api/v1/ciclos/", {}, format="json").status_code, 403)
+        self.assertEqual(self.client.get(f"/api/v1/ciclos/{self.ciclo.pk}/").status_code, 403)
         self.assertEqual(
-            self.client.get(reverse("evaluaciones:ciclo_crear")).status_code, 403
-        )
-        self.assertEqual(
-            self.client.get(
-                reverse("evaluaciones:ciclo_detalle", args=[self.ciclo.pk])
-            ).status_code,
+            self.client.post(f"/api/v1/ciclos/{self.ciclo.pk}/activar/").status_code,
             403,
         )
+        self.assertEqual(self.client.get("/api/v1/evaluaciones/equipo/").status_code, 403)
         self.assertEqual(
-            self.client.post(
-                reverse("evaluaciones:ciclo_activar", args=[self.ciclo.pk])
-            ).status_code,
-            403,
-        )
-        self.assertEqual(self.client.get(reverse("evaluaciones:equipo")).status_code, 403)
-        self.assertEqual(
-            self.client.get(
-                reverse("evaluaciones:supervisar", args=[evaluacion.pk])
-            ).status_code,
+            self.client.get(f"/api/v1/evaluaciones/{evaluacion.pk}/supervisar/").status_code,
             403,
         )
 
     def test_supervisor_lee_ciclos_pero_no_activa(self):
-        self.client.force_login(self.supervisor)
-        self.assertEqual(self.client.get(reverse("evaluaciones:ciclos")).status_code, 200)
-        self.assertEqual(
-            self.client.get(reverse("evaluaciones:ciclo_crear")).status_code, 403
-        )
+        self._auth(self.supervisor)
+        self.assertEqual(self.client.get("/api/v1/ciclos/").status_code, 200)
         self.assertEqual(
             self.client.post(
-                reverse("evaluaciones:ciclo_activar", args=[self.ciclo.pk])
+                "/api/v1/ciclos/",
+                {"nombre": "No"},
+                format="json",
             ).status_code,
+            403,
+        )
+        self.assertEqual(
+            self.client.post(f"/api/v1/ciclos/{self.ciclo.pk}/activar/").status_code,
             403,
         )
         self.ciclo.refresh_from_db()
         self.assertEqual(self.ciclo.estado, CicloEvaluacion.Estado.BORRADOR)
 
+    def test_supervisor_no_crea_plantillas(self):
+        self._auth(self.supervisor)
+        response = self.client.post(
+            "/api/v1/plantillas/",
+            {"nombre": "No", "tipo": "mixta", "criterios": []},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 403)
+
     def test_admin_rrhh_no_accede_a_equipo(self):
-        self.client.force_login(self.admin)
-        self.assertEqual(self.client.get(reverse("evaluaciones:equipo")).status_code, 403)
+        self._auth(self.admin)
+        self.assertEqual(self.client.get("/api/v1/evaluaciones/equipo/").status_code, 403)
 
 
 class FlujoCiego180Tests(CicloBaseTestCase):
@@ -343,14 +371,13 @@ class FlujoCiego180Tests(CicloBaseTestCase):
             True,
             self.empleado,
         )
-        self.client.force_login(self.supervisor)
-        response = self.client.get(
-            reverse("evaluaciones:supervisar", args=[evaluacion.pk])
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "sin ver la autoevaluación")
-        self.assertNotContains(response, "Listo ciego")
-        self.assertNotContains(response, "vista comparativa")
+        self._auth(self.supervisor)
+        response = self.client.get(f"/api/v1/evaluaciones/{evaluacion.pk}/supervisar/")
+        self.assertEqual(response.status_code, 200, response.content)
+        cuerpo = response.content.decode()
+        self.assertNotIn("Listo ciego", cuerpo)
+        self.assertIsNone(response.data["respuestas"][0]["puntaje_empleado"])
+        self.assertEqual(response.data["respuestas"][0]["comentario_empleado"], "")
 
     def test_cerrar_jefe_revela_comparacion_con_brecha(self):
         evaluacion = self._avanzar_hasta_comparacion()
@@ -358,31 +385,26 @@ class FlujoCiego180Tests(CicloBaseTestCase):
         self.assertEqual(evaluacion.respuestas.get().brecha, 1)
         self.assertEqual(evaluacion.respuestas.get().brecha_display, "+1")
 
-        self.client.force_login(self.empleado)
-        resultado = self.client.get(
-            reverse("evaluaciones:resultado", args=[evaluacion.pk])
-        )
+        self._auth(self.empleado)
+        resultado = self.client.get(f"/api/v1/evaluaciones/{evaluacion.pk}/resultado/")
         self.assertEqual(resultado.status_code, 200)
-        self.assertContains(resultado, "Listo ciego")
-        self.assertContains(resultado, "Ok jefe")
-        self.assertContains(resultado, "+1")
-        self.assertContains(resultado, "reunión de feedback")
-        self.assertNotContains(resultado, "Firmar conformidad")
+        item = resultado.data["respuestas"][0]
+        self.assertEqual(item["comentario_empleado"], "Listo ciego")
+        self.assertEqual(item["comentario_supervisor"], "Ok jefe")
+        self.assertEqual(item["brecha"], 1)
+        self.assertFalse(resultado.data["puede_firmar"])
+        self.assertFalse(resultado.data["puede_reunion"])
 
     def test_supervisor_y_rrhh_ven_resultado_tercero_no(self):
         evaluacion = self._avanzar_hasta_comparacion()
-        self.client.force_login(self.supervisor)
+        self._auth(self.supervisor)
         self.assertEqual(
-            self.client.get(
-                reverse("evaluaciones:resultado", args=[evaluacion.pk])
-            ).status_code,
+            self.client.get(f"/api/v1/evaluaciones/{evaluacion.pk}/resultado/").status_code,
             200,
         )
-        self.client.force_login(self.admin)
+        self._auth(self.admin)
         self.assertEqual(
-            self.client.get(
-                reverse("evaluaciones:resultado", args=[evaluacion.pk])
-            ).status_code,
+            self.client.get(f"/api/v1/evaluaciones/{evaluacion.pk}/resultado/").status_code,
             200,
         )
         tercero = make_usuario(
@@ -394,39 +416,34 @@ class FlujoCiego180Tests(CicloBaseTestCase):
             first_name="Otro",
             last_name="Empleado",
         )
-        self.client.force_login(tercero)
+        self._auth(tercero)
         self.assertEqual(
-            self.client.get(
-                reverse("evaluaciones:resultado", args=[evaluacion.pk])
-            ).status_code,
+            self.client.get(f"/api/v1/evaluaciones/{evaluacion.pk}/resultado/").status_code,
             403,
         )
 
     def test_registrar_reunion_habilita_firma(self):
-        from django.utils import timezone
-
         evaluacion = self._avanzar_hasta_comparacion()
-        self.client.force_login(self.supervisor)
+        self._auth(self.supervisor)
         response = self.client.post(
-            reverse("evaluaciones:resultado", args=[evaluacion.pk]),
+            f"/api/v1/evaluaciones/{evaluacion.pk}/reunion/",
             {
-                "reunion_fecha": timezone.now().strftime("%Y-%m-%dT%H:%M"),
+                "reunion_fecha": timezone.now().isoformat(),
                 "reunion_notas": "Hablamos las brechas.",
             },
+            format="json",
         )
-        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.status_code, 200, response.content)
         evaluacion.refresh_from_db()
         self.assertEqual(evaluacion.estado, Evaluacion.Estado.PENDIENTE_CONFORMIDAD)
         self.assertIn("brechas", evaluacion.reunion_notas)
 
-        self.client.force_login(self.empleado)
-        resultado = self.client.get(
-            reverse("evaluaciones:resultado", args=[evaluacion.pk])
-        )
-        self.assertContains(resultado, "Firmar conformidad")
-        self.assertContains(resultado, "Hablamos las brechas.")
+        self._auth(self.empleado)
+        resultado = self.client.get(f"/api/v1/evaluaciones/{evaluacion.pk}/resultado/")
+        self.assertTrue(resultado.data["puede_firmar"])
+        self.assertIn("Hablamos las brechas.", resultado.data["reunion_notas"])
 
-    def test_habilitar_reunion_por_vista(self):
+    def test_habilitar_reunion_por_api(self):
         activar_ciclo(self.ciclo, self.admin)
         evaluacion = Evaluacion.objects.get(ciclo=self.ciclo, evaluado=self.empleado)
         item = evaluacion.respuestas.get()
@@ -436,18 +453,20 @@ class FlujoCiego180Tests(CicloBaseTestCase):
             True,
             self.empleado,
         )
-        self.client.force_login(self.supervisor)
-        response = self.client.post(
-            reverse("evaluaciones:supervisar", args=[evaluacion.pk]),
-            _formset_sup(
-                evaluacion,
-                puntaje=5,
-                feedback="Feedback",
-                accion="cerrar",
-                habilitar_reunion=True,
-            ),
+        self._auth(self.supervisor)
+        response = self.client.put(
+            f"/api/v1/evaluaciones/{evaluacion.pk}/supervisar/",
+            {
+                "cerrar": True,
+                "habilitar_reunion": True,
+                "feedback_supervisor": "Feedback",
+                "respuestas": _respuestas(
+                    evaluacion, "puntaje_supervisor", "comentario_supervisor", 5, "Bien"
+                ),
+            },
+            format="json",
         )
-        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.status_code, 200, response.content)
         evaluacion.refresh_from_db()
         self.assertEqual(evaluacion.estado, Evaluacion.Estado.PENDIENTE_COMPARACION)
 
@@ -470,33 +489,26 @@ class FlujoCiego180Tests(CicloBaseTestCase):
         )
         evaluacion.refresh_from_db()
         self.assertEqual(evaluacion.estado, Evaluacion.Estado.PENDIENTE_CONFORMIDAD)
-        self.client.force_login(self.empleado)
-        resultado = self.client.get(
-            reverse("evaluaciones:resultado", args=[evaluacion.pk])
-        )
-        self.assertContains(resultado, "Firmar conformidad")
-        self.assertContains(resultado, "Por el sistema, sin reunión")
-        self.assertContains(resultado, "Feedback por sistema")
+        self._auth(self.empleado)
+        resultado = self.client.get(f"/api/v1/evaluaciones/{evaluacion.pk}/resultado/")
+        self.assertTrue(resultado.data["puede_firmar"])
+        self.assertEqual(resultado.data["feedback_supervisor"], "Feedback por sistema")
+        self.assertFalse((resultado.data["reunion_notas"] or "").strip())
 
     def test_omitir_reunion_habilita_firma(self):
         evaluacion = self._avanzar_hasta_comparacion()
         with self.assertRaises(EvaluacionesError):
             firmar_conformidad(evaluacion, self.empleado, "127.0.0.1")
-        self.client.force_login(self.supervisor)
-        response = self.client.post(
-            reverse("evaluaciones:resultado", args=[evaluacion.pk]),
-            {"accion": "omitir_reunion"},
-        )
-        self.assertEqual(response.status_code, 302)
+        self._auth(self.supervisor)
+        response = self.client.post(f"/api/v1/evaluaciones/{evaluacion.pk}/omitir-reunion/")
+        self.assertEqual(response.status_code, 200, response.content)
         evaluacion.refresh_from_db()
         self.assertEqual(evaluacion.estado, Evaluacion.Estado.PENDIENTE_CONFORMIDAD)
         self.assertFalse((evaluacion.reunion_notas or "").strip())
-        self.client.force_login(self.empleado)
-        resultado = self.client.get(
-            reverse("evaluaciones:resultado", args=[evaluacion.pk])
-        )
-        self.assertContains(resultado, "Firmar conformidad")
-        self.assertContains(resultado, "Por el sistema, sin reunión")
+        self._auth(self.empleado)
+        resultado = self.client.get(f"/api/v1/evaluaciones/{evaluacion.pk}/resultado/")
+        self.assertTrue(resultado.data["puede_firmar"])
+        self.assertFalse((resultado.data["reunion_notas"] or "").strip())
 
 
 class ResultadoPdfTests(CicloBaseTestCase):
@@ -521,34 +533,23 @@ class ResultadoPdfTests(CicloBaseTestCase):
         evaluacion.refresh_from_db()
         return evaluacion
 
-    def test_resultado_muestra_boton_pdf(self):
-        activar_ciclo(self.ciclo, self.admin)
-        evaluacion = Evaluacion.objects.get(ciclo=self.ciclo, evaluado=self.empleado)
-        self.client.force_login(self.empleado)
-        response = self.client.get(reverse("evaluaciones:resultado", args=[evaluacion.pk]))
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, reverse("evaluaciones:resultado_pdf", args=[evaluacion.pk]))
-        self.assertContains(response, "Imprimir PDF")
-
     def test_pdf_propio_200_y_content_type(self):
         from evaluaciones.pdf import CONTENT_TYPE_PDF, nombre_archivo_pdf, numero_documento
 
         evaluacion = self._avanzar_hasta_comparacion()
-        self.client.force_login(self.empleado)
-        response = self.client.get(
-            reverse("evaluaciones:resultado_pdf", args=[evaluacion.pk])
-        )
+        self._auth(self.empleado)
+        response = self.client.get(f"/api/v1/evaluaciones/{evaluacion.pk}/resultado.pdf")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], CONTENT_TYPE_PDF)
         self.assertTrue(response.content.startswith(b"%PDF"), "La respuesta no es un PDF")
         self.assertIn("inline", response["Content-Disposition"])
         self.assertIn(nombre_archivo_pdf(evaluacion), response["Content-Disposition"])
         cuerpo = response.content
-        self.assertTrue(numero_documento(evaluacion).encode("ascii") in cuerpo, "Falta el nro. de documento")
-        self.assertTrue(b"TeamPulse" in cuerpo, "Falta la marca TeamPulse")
-        self.assertTrue(b"Listo ciego" in cuerpo, "Falta el comentario del empleado")
-        self.assertTrue(b"Ok jefe" in cuerpo, "Falta el comentario del supervisor")
-        self.assertTrue(b"FIRMA DIGITAL" in cuerpo, "Falta el bloque de firma")
+        self.assertIn(numero_documento(evaluacion).encode("ascii"), cuerpo)
+        self.assertIn(b"TeamPulse", cuerpo)
+        self.assertIn(b"Listo ciego", cuerpo)
+        self.assertIn(b"Ok jefe", cuerpo)
+        self.assertIn(b"FIRMA DIGITAL", cuerpo)
 
     def test_pdf_oculta_supervisor_antes_de_comparacion(self):
         activar_ciclo(self.ciclo, self.admin)
@@ -560,19 +561,22 @@ class ResultadoPdfTests(CicloBaseTestCase):
             True,
             self.empleado,
         )
-        self.client.force_login(self.empleado)
-        response = self.client.get(
-            reverse("evaluaciones:resultado_pdf", args=[evaluacion.pk])
+        guardar_eval_supervisor(
+            evaluacion,
+            {item.pk: {"puntaje_supervisor": 5, "comentario_supervisor": "Ok jefe"}},
+            "Feedback oculto",
+            False,
+            self.supervisor,
         )
+        self._auth(self.empleado)
+        response = self.client.get(f"/api/v1/evaluaciones/{evaluacion.pk}/resultado.pdf")
         self.assertEqual(response.status_code, 200)
         cuerpo = response.content
-        self.assertTrue(b"Listo ciego" in cuerpo, "Falta el comentario del empleado")
-        self.assertFalse(b"Ok jefe" in cuerpo, "El PDF filtró el comentario del supervisor")
-        self.assertTrue(b"PENDIENTE DE FIRMA DIGITAL" in cuerpo, "Falta el estado de firma pendiente")
+        self.assertIn(b"Listo ciego", cuerpo)
+        self.assertNotIn(b"Ok jefe", cuerpo)
+        self.assertIn(b"PENDIENTE DE FIRMA DIGITAL", cuerpo)
 
     def test_pdf_incluye_hash_cuando_esta_firmada(self):
-        from django.utils import timezone
-
         evaluacion = self._avanzar_hasta_comparacion()
         registrar_reunion_feedback(
             evaluacion,
@@ -582,25 +586,20 @@ class ResultadoPdfTests(CicloBaseTestCase):
         )
         firmar_conformidad(evaluacion, self.empleado, "127.0.0.1")
         evaluacion.refresh_from_db()
-        self.client.force_login(self.empleado)
-        response = self.client.get(
-            reverse("evaluaciones:resultado_pdf", args=[evaluacion.pk])
-        )
+        self._auth(self.empleado)
+        response = self.client.get(f"/api/v1/evaluaciones/{evaluacion.pk}/resultado.pdf")
         self.assertEqual(response.status_code, 200)
         cuerpo = response.content
-        self.assertTrue(
-            evaluacion.firma_hash.encode("ascii") in cuerpo,
-            "Falta el hash de firma digital",
-        )
-        self.assertTrue(b"SHA-256" in cuerpo, "Falta la etiqueta SHA-256")
+        self.assertIn(evaluacion.firma_hash.encode("ascii"), cuerpo)
+        self.assertIn(b"SHA-256", cuerpo)
 
     def test_pdf_registra_auditoria(self):
         from auditoria.constants import Accion
         from auditoria.models import AuditLog
 
         evaluacion = self._avanzar_hasta_comparacion()
-        self.client.force_login(self.empleado)
-        self.client.get(reverse("evaluaciones:resultado_pdf", args=[evaluacion.pk]))
+        self._auth(self.empleado)
+        self.client.get(f"/api/v1/evaluaciones/{evaluacion.pk}/resultado.pdf")
         log = AuditLog.objects.filter(
             accion=Accion.EXPORTAR,
             object_id=str(evaluacion.pk),
@@ -620,11 +619,9 @@ class ResultadoPdfTests(CicloBaseTestCase):
             first_name="Otro",
             last_name="Empleado",
         )
-        self.client.force_login(tercero)
+        self._auth(tercero)
         self.assertEqual(
-            self.client.get(
-                reverse("evaluaciones:resultado_pdf", args=[evaluacion.pk])
-            ).status_code,
+            self.client.get(f"/api/v1/evaluaciones/{evaluacion.pk}/resultado.pdf").status_code,
             403,
         )
 
@@ -639,10 +636,8 @@ class ResultadoPdfTests(CicloBaseTestCase):
         activar_ciclo(ciclo_b, admin_b)
         eval_b = Evaluacion.objects.get(ciclo=ciclo_b, evaluado=empleado_b)
 
-        self.client.force_login(self.empleado)
-        response = self.client.get(
-            reverse("evaluaciones:resultado_pdf", args=[eval_b.pk])
-        )
+        self._auth(self.empleado)
+        response = self.client.get(f"/api/v1/evaluaciones/{eval_b.pk}/resultado.pdf")
         self.assertEqual(response.status_code, 404)
 
 
@@ -710,17 +705,17 @@ class ItemTextoYCategoriaTests(CicloBaseTestCase):
                 self.empleado,
             )
 
-    def test_formulario_muestra_categorias_y_devolucion(self):
+    def test_autoevaluacion_expone_categorias_y_tipo(self):
         activar_ciclo(self.ciclo, self.admin)
         evaluacion = Evaluacion.objects.get(ciclo=self.ciclo, evaluado=self.empleado)
-        self.client.force_login(self.empleado)
-        response = self.client.get(reverse("evaluaciones:auto", args=[evaluacion.pk]))
+        self._auth(self.empleado)
+        response = self.client.get(f"/api/v1/evaluaciones/{evaluacion.pk}/autoevaluacion/")
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Competencias generales")
-        self.assertContains(response, "Cierre")
-        self.assertContains(response, "Devolución")
-        self.assertContains(response, "Campo de texto")
-        self.assertContains(response, "Fortalezas destacadas")
+        por_nombre = {item["competencia"]: item for item in response.data["respuestas"]}
+        self.assertEqual(por_nombre["Comunicación"]["categoria"], "Competencias generales")
+        self.assertEqual(por_nombre["Fortalezas destacadas"]["categoria"], "Cierre")
+        self.assertEqual(por_nombre["Fortalezas destacadas"]["tipo_item"], "texto")
+        self.assertTrue(por_nombre["Fortalezas destacadas"]["comentario_empleado_obligatorio"])
 
     def test_agrupar_items_por_categoria(self):
         activar_ciclo(self.ciclo, self.admin)
@@ -761,4 +756,3 @@ class ItemTextoYCategoriaTests(CicloBaseTestCase):
             "puntaje_empleado",
         )
         self.assertEqual(promedio, Decimal("4.00"))
-

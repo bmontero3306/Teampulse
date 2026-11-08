@@ -1,7 +1,9 @@
+from datetime import timedelta
 from io import BytesIO
 
-from django.test import TestCase
-from django.urls import reverse
+from django.utils import timezone
+from rest_framework.authtoken.models import Token
+from rest_framework.test import APITestCase
 
 from app.tests.factories import (
     make_area,
@@ -23,52 +25,101 @@ from reportes.services import (
 )
 from reportes.tests.helpers import escenario_iso_basico
 
+URL_ISO = "/api/v1/reportes/iso/"
+URL_PDF = "/api/v1/reportes/iso/pdf/"
+URL_EXCEL = "/api/v1/reportes/iso/excel/"
 
-class IsoPermisosTests(TestCase):
+CLAVES_FILA = {
+    "id",
+    "ciclo",
+    "evaluado",
+    "evaluador",
+    "area",
+    "puesto",
+    "estado",
+    "estado_display",
+    "enviada_auto_en",
+    "cerrada_supervisor_en",
+    "firmada_en",
+    "firma_hash",
+}
+CLAVES_INDICADORES = {
+    "total",
+    "auto_completas",
+    "pct_auto",
+    "supervisor",
+    "pct_supervisor",
+    "firmadas",
+    "pct_firmadas",
+    "con_observacion",
+    "pct_observacion",
+    "promedio_auto",
+    "promedio_supervisor",
+    "promedio_firma",
+}
+
+
+class IsoApiTestCase(APITestCase):
+    def auth(self, usuario):
+        token, _ = Token.objects.get_or_create(user=usuario)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {token.key}")
+
+
+class IsoPermisosTests(IsoApiTestCase):
     def setUp(self):
         self.datos = escenario_iso_basico()
-        self.urls = [
-            reverse("reportes:iso"),
-            reverse("reportes:iso_pdf"),
-            reverse("reportes:iso_excel"),
-        ]
+        self.urls = [URL_ISO, URL_PDF, URL_EXCEL]
 
     def test_empleado_recibe_403(self):
-        self.client.force_login(self.datos["empleado"])
+        self.auth(self.datos["empleado"])
         for url in self.urls:
             with self.subTest(url=url):
                 response = self.client.get(url)
                 self.assertEqual(response.status_code, 403)
 
     def test_supervisor_recibe_403(self):
-        self.client.force_login(self.datos["supervisor"])
+        self.auth(self.datos["supervisor"])
         for url in self.urls:
             with self.subTest(url=url):
                 response = self.client.get(url)
                 self.assertEqual(response.status_code, 403)
 
-    def test_anonimo_redirige_a_login(self):
-        response = self.client.get(reverse("reportes:iso"))
-        self.assertEqual(response.status_code, 302)
-        self.assertIn("/cuentas/login/", response.url)
+    def test_anonimo_recibe_401(self):
+        response = self.client.get(URL_ISO)
+        self.assertEqual(response.status_code, 401)
 
     def test_admin_rrhh_ve_preview(self):
-        self.client.force_login(self.datos["admin"])
-        response = self.client.get(reverse("reportes:iso"))
+        self.auth(self.datos["admin"])
+        response = self.client.get(URL_ISO)
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Reportes ISO 9001")
-        self.assertContains(response, self.datos["empleado"].first_name)
-        self.assertContains(response, "Exportar PDF")
-        self.assertContains(response, "Exportar Excel")
+        self.assertEqual(response.data["empresa"], self.datos["empresa"].nombre)
+        self.assertEqual(set(response.data["indicadores"]), CLAVES_INDICADORES)
+        filas = response.data["evaluaciones"]
+        self.assertTrue(filas)
+        self.assertEqual(set(filas[0]), CLAVES_FILA)
+        nombres = {fila["evaluado"] for fila in filas}
+        self.assertIn("Pablo Evaluado", nombres)
+        firmada = next(fila for fila in filas if fila["id"] == self.datos["firmada"].pk)
+        self.assertEqual(firmada["area"], self.datos["area"].nombre)
+        self.assertEqual(firmada["ciclo"], self.datos["ciclo"].nombre)
+        self.assertEqual(firmada["evaluador"], "Sara Jefa")
+        self.assertEqual(firmada["estado"], Evaluacion.Estado.CERRADA)
+        self.assertEqual(firmada["firma_hash"], "a" * 64)
+        self.assertIsNotNone(firmada["enviada_auto_en"])
+        self.assertIsNotNone(firmada["cerrada_supervisor_en"])
+        self.assertIsNotNone(firmada["firmada_en"])
+        self.assertEqual(response.data["opciones"]["empresas"], [])
+        self.assertTrue(response.data["opciones"]["ciclos"])
+        self.assertTrue(response.data["opciones"]["areas"])
 
 
-class IsoExportTests(TestCase):
+class IsoExportTests(IsoApiTestCase):
     def setUp(self):
         self.datos = escenario_iso_basico()
-        self.client.force_login(self.datos["admin"])
+        self.auth(self.datos["admin"])
 
     def test_export_pdf_200_y_content_type(self):
-        response = self.client.get(reverse("reportes:iso_pdf"))
+        response = self.client.get(URL_PDF)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], CONTENT_TYPE_PDF)
         self.assertTrue(response.content.startswith(b"%PDF"))
@@ -76,7 +127,7 @@ class IsoExportTests(TestCase):
         self.assertIn(".pdf", response["Content-Disposition"])
 
     def test_export_excel_200_y_content_type(self):
-        response = self.client.get(reverse("reportes:iso_excel"))
+        response = self.client.get(URL_EXCEL)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], CONTENT_TYPE_EXCEL)
         self.assertIn("spreadsheet", response["Content-Type"])
@@ -86,7 +137,7 @@ class IsoExportTests(TestCase):
     def test_excel_tiene_hoja_resumen_y_detalle(self):
         from openpyxl import load_workbook
 
-        response = self.client.get(reverse("reportes:iso_excel"))
+        response = self.client.get(URL_EXCEL)
         wb = load_workbook(BytesIO(response.content))
         self.assertEqual(wb.sheetnames, ["Resumen", "Detalle"])
         self.assertIn("ISO 9001", wb["Resumen"]["A1"].value)
@@ -95,15 +146,15 @@ class IsoExportTests(TestCase):
         self.assertIn("Hash de firma", headers)
 
     def test_export_registra_auditoria(self):
-        self.client.get(reverse("reportes:iso_pdf"))
-        self.client.get(reverse("reportes:iso_excel"))
+        self.client.get(URL_PDF)
+        self.client.get(URL_EXCEL)
         logs = AuditLog.objects.filter(accion=Accion.EXPORTAR, empresa=self.datos["empresa"])
         self.assertEqual(logs.count(), 2)
         formatos = {log.payload.get("formato") for log in logs}
         self.assertEqual(formatos, {"pdf", "excel"})
 
 
-class IsoFiltroTenantTests(TestCase):
+class IsoFiltroTenantTests(IsoApiTestCase):
     def setUp(self):
         self.empresa_a = make_empresa()
         self.empresa_b = make_empresa()
@@ -139,19 +190,40 @@ class IsoFiltroTenantTests(TestCase):
             self.ciclo_b, empleado_b, puesto=puesto_b, estado=Evaluacion.Estado.CERRADA
         )
 
+    def _ids(self, response):
+        return {fila["id"] for fila in response.data["evaluaciones"]}
+
     def test_filtro_de_area_no_filtra_otra_empresa(self):
         qs = generar_iso_queryset({"empresa": self.empresa_a, "area": self.area_b})
         pks = set(qs.values_list("pk", flat=True))
         self.assertNotIn(self.eval_b.pk, pks)
         self.assertFalse(qs.filter(empresa=self.empresa_b).exists())
 
-        self.client.force_login(self.admin_a)
-        response = self.client.get(reverse("reportes:iso"), {"area": self.area_b.pk})
+        self.auth(self.admin_a)
+        response = self.client.get(URL_ISO, {"area": self.area_b.pk})
         self.assertEqual(response.status_code, 200)
-        pks_vista = {ev.pk for ev in response.context["evaluaciones"]}
-        self.assertNotIn(self.eval_b.pk, pks_vista)
-        self.assertTrue(all(ev.empresa_id == self.empresa_a.pk for ev in response.context["evaluaciones"]))
-        self.assertNotContains(response, "Nestor")
+        self.assertNotIn(self.eval_b.pk, self._ids(response))
+        self.assertIn(self.eval_a.pk, self._ids(response))
+        nombres = {fila["evaluado"] for fila in response.data["evaluaciones"]}
+        self.assertNotIn("Nestor DeB", nombres)
+        self.assertEqual(response.data["empresa"], self.empresa_a.nombre)
+
+    def test_admin_no_cambia_de_empresa(self):
+        self.auth(self.admin_a)
+        response = self.client.get(URL_ISO, {"empresa": self.empresa_b.pk})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["empresa"], self.empresa_a.nombre)
+        self.assertIn(self.eval_a.pk, self._ids(response))
+        self.assertNotIn(self.eval_b.pk, self._ids(response))
+
+    def test_superadmin_elige_empresa(self):
+        superadmin = make_usuario(None, rol="superadmin")
+        self.auth(superadmin)
+        response = self.client.get(URL_ISO, {"empresa": self.empresa_b.pk})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["empresa"], self.empresa_b.nombre)
+        self.assertEqual(self._ids(response), {self.eval_b.pk})
+        self.assertTrue(response.data["opciones"]["empresas"])
 
     def test_queryset_siempre_por_empresa(self):
         qs = generar_iso_queryset({"empresa": self.empresa_a})
@@ -163,8 +235,27 @@ class IsoFiltroTenantTests(TestCase):
         qs = generar_iso_queryset({"empresa": self.empresa_a, "area": self.area_a})
         self.assertEqual(list(qs.values_list("pk", flat=True)), [self.eval_a.pk])
 
+        self.auth(self.admin_a)
+        response = self.client.get(URL_ISO, {"area": self.area_a.pk})
+        self.assertEqual(self._ids(response), {self.eval_a.pk})
 
-class IsoIndicadoresTests(TestCase):
+    def test_filtro_ciclo_y_estado(self):
+        self.auth(self.admin_a)
+        por_ciclo = self.client.get(URL_ISO, {"ciclo": self.ciclo_a.pk})
+        self.assertEqual(self._ids(por_ciclo), {self.eval_a.pk})
+        firmadas = self.client.get(URL_ISO, {"estado": Evaluacion.Estado.CERRADA})
+        self.assertEqual(self._ids(firmadas), {self.eval_a.pk})
+        sin_firmar = self.client.get(URL_ISO, {"estado": "no_firmada"})
+        self.assertNotIn(self.eval_a.pk, self._ids(sin_firmar))
+
+    def test_fecha_invalida_no_aplica_filtros(self):
+        self.auth(self.admin_a)
+        response = self.client.get(URL_ISO, {"fecha_desde": "no-es-fecha", "ciclo": self.ciclo_a.pk})
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(self.eval_a.pk, self._ids(response))
+
+
+class IsoIndicadoresTests(IsoApiTestCase):
     def test_porcentajes_y_totales(self):
         datos = escenario_iso_basico()
         reporte = construir_iso_reporte({"empresa": datos["empresa"], "ciclo": datos["ciclo"]})
@@ -174,3 +265,23 @@ class IsoIndicadoresTests(TestCase):
         self.assertEqual(reporte.indicadores.auto_completas, 1)
         self.assertIsNotNone(reporte.indicadores.promedio_auto)
         self.assertIsNotNone(reporte.indicadores.promedio_firma)
+
+    def test_preview_api_repite_indicadores(self):
+        datos = escenario_iso_basico()
+        self.auth(datos["admin"])
+        response = self.client.get(URL_ISO, {"ciclo": datos["ciclo"].pk})
+        self.assertEqual(response.status_code, 200)
+        ind = response.data["indicadores"]
+        self.assertEqual(ind["total"], 2)
+        self.assertEqual(ind["firmadas"], 1)
+        self.assertEqual(ind["pct_firmadas"], 50.0)
+        self.assertEqual(len(response.data["evaluaciones"]), 2)
+
+    def test_fecha_acota_el_periodo(self):
+        datos = escenario_iso_basico()
+        self.auth(datos["admin"])
+        fuera = (timezone.localdate() + timedelta(days=400)).isoformat()
+        response = self.client.get(URL_ISO, {"fecha_desde": fuera})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["evaluaciones"], [])
+        self.assertEqual(response.data["indicadores"]["total"], 0)

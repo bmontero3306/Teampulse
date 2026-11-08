@@ -24,9 +24,8 @@ from cuentas.api.serializers import (
     UsuarioSerializer,
     UsuarioWriteSerializer,
 )
-from cuentas.forms import ROLES_GESTION, RecuperarClaveForm
-from cuentas.models import Usuario
-from cuentas.services import asignar_clave_temporal
+from cuentas.models import ROLES_GESTION, Usuario
+from cuentas.services import asignar_clave_temporal, usuarios_para_recuperar_clave
 from empresas.models import Empresa
 from notificaciones.models import Notificacion
 from notificaciones.services import notificar
@@ -192,9 +191,7 @@ class ResetSolicitudView(APIView):
         serializer = ResetSolicitudSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         email = serializer.validated_data["email"]
-        form = RecuperarClaveForm(data={"email": email})
-        form.is_valid()
-        for usuario in form.get_users(email):
+        for usuario in usuarios_para_recuperar_clave(email):
             uid = urlsafe_base64_encode(force_bytes(usuario.pk))
             token = default_token_generator.make_token(usuario)
             url = f"{settings.FRONTEND_ORIGIN}/recuperar/{uid}/{token}"

@@ -2,9 +2,8 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from notificaciones.models import Notificacion
 from notificaciones.serializers import NotificacionSerializer
-from notificaciones.views import _queryset_usuario
+from notificaciones.services import _queryset_usuario
 
 
 class NotificacionViewSet(viewsets.ReadOnlyModelViewSet):

@@ -1,3 +1,5 @@
+from datetime import date
+
 from django.http import HttpResponse
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -6,10 +8,11 @@ from app.api.permissions import RolPermission
 from auditoria.constants import Accion
 from auditoria.services import registrar_auditoria
 from cuentas.models import Usuario
+from empresas.models import Empresa
 from evaluaciones.models import CicloEvaluacion, Evaluacion
 from organizacion.models import Area
-from reportes.forms import IsoFiltroForm
 from reportes.services import (
+    CONFORMIDAD_NO_FIRMADA,
     CONTENT_TYPE_EXCEL,
     CONTENT_TYPE_PDF,
     construir_iso_reporte,
@@ -18,24 +21,94 @@ from reportes.services import (
     payload_auditoria_export,
 )
 
+_ESTADOS_FILTRO = frozenset(
+    {
+        "",
+        Evaluacion.Estado.PENDIENTE_COMPARACION,
+        Evaluacion.Estado.PENDIENTE_CONFORMIDAD,
+        Evaluacion.Estado.CERRADA,
+        Evaluacion.Estado.CERRADA_CON_OBS,
+        CONFORMIDAD_NO_FIRMADA,
+    }
+)
 
-def _filtros_api(request):
-    form = IsoFiltroForm(
-        request.query_params or None,
-        empresa=getattr(request, "empresa", None),
-        usuario=request.user,
-    )
-    empresa = getattr(request, "empresa", None)
-    datos = form.cleaned_data if form.is_valid() else {}
-    if request.user.rol == Usuario.Rol.SUPERADMIN:
-        empresa = datos.get("empresa") or empresa
+
+def _pk(valor):
+    if valor in (None, ""):
+        return None
+    try:
+        return int(valor)
+    except (TypeError, ValueError):
+        raise ValueError
+
+
+def _fecha(valor):
+    if valor in (None, ""):
+        return None
+    try:
+        return date.fromisoformat(str(valor).strip())
+    except ValueError:
+        raise ValueError
+
+
+def _filtros_vacios(empresa):
     return {
         "empresa": empresa,
-        "ciclo": datos.get("ciclo"),
-        "area": datos.get("area"),
-        "estado": datos.get("estado") or "",
-        "fecha_desde": datos.get("fecha_desde"),
-        "fecha_hasta": datos.get("fecha_hasta"),
+        "ciclo": None,
+        "area": None,
+        "estado": "",
+        "fecha_desde": None,
+        "fecha_hasta": None,
+    }
+
+
+def _filtros_api(request):
+    params = request.query_params
+    empresa = getattr(request, "empresa", None)
+    if not params:
+        return _filtros_vacios(empresa)
+
+    try:
+        if request.user.rol == Usuario.Rol.SUPERADMIN:
+            pk_empresa = _pk(params.get("empresa"))
+            if pk_empresa is not None:
+                elegida = Empresa.objects.filter(pk=pk_empresa).first()
+                if elegida is None:
+                    return _filtros_vacios(empresa)
+                empresa = elegida
+
+        ciclo = None
+        pk_ciclo = _pk(params.get("ciclo"))
+        if pk_ciclo is not None:
+            ciclo = (
+                CicloEvaluacion.objects.for_empresa(empresa).filter(pk=pk_ciclo).first()
+            )
+            if ciclo is None:
+                return _filtros_vacios(getattr(request, "empresa", None))
+
+        area = None
+        pk_area = _pk(params.get("area"))
+        if pk_area is not None:
+            area = Area.objects.for_empresa(empresa).filter(pk=pk_area).first()
+            if area is None:
+                return _filtros_vacios(getattr(request, "empresa", None))
+
+        estado = params.get("estado") or ""
+        if estado not in _ESTADOS_FILTRO:
+            return _filtros_vacios(getattr(request, "empresa", None))
+
+        fecha_desde = _fecha(params.get("fecha_desde"))
+        fecha_hasta = _fecha(params.get("fecha_hasta"))
+    except ValueError:
+        return _filtros_vacios(getattr(request, "empresa", None))
+
+    return {
+        "empresa": empresa,
+        "ciclo": ciclo,
+        "area": area,
+        "estado": estado,
+        "fecha_desde": fecha_desde,
+        "fecha_hasta": fecha_hasta,
     }
 
 
@@ -145,8 +218,6 @@ def _opciones(request, empresa):
     user = request.user
     empresas = []
     if user.rol == Usuario.Rol.SUPERADMIN:
-        from empresas.models import Empresa
-
         empresas = list(Empresa.objects.order_by("nombre").values("id", "nombre"))
     ciclos = []
     areas = []
@@ -156,7 +227,11 @@ def _opciones(request, empresa):
             .order_by("-fecha_inicio", "nombre")
             .values("id", "nombre", "estado")
         )
-        areas = list(Area.objects.filter(empresa=empresa, activa=True).order_by("nombre").values("id", "nombre"))
+        areas = list(
+            Area.objects.filter(empresa=empresa, activa=True)
+            .order_by("nombre")
+            .values("id", "nombre")
+        )
     return {
         "empresas": empresas,
         "ciclos": ciclos,

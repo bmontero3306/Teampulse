@@ -7,8 +7,17 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from app.api.permissions import EmpresaActivaPermission, RolPermission
+from auditoria.constants import Accion
 from auditoria.services import registrar_auditoria
 from cuentas.models import Usuario
+from evaluaciones.access import (
+    ROLES_CRUD,
+    ROLES_FLUJO_PROPIO,
+    ROLES_LECTURA,
+    ROLES_SUPERVISOR,
+    _ip,
+    _puede_ver_resultado,
+)
 from evaluaciones.api.serializers import (
     AutoevaluacionInputSerializer,
     CicloSerializer,
@@ -39,11 +48,6 @@ from evaluaciones.services import (
     registrar_reunion_feedback,
     reprogramar_ciclo,
 )
-from evaluaciones.views import ROLES_CRUD as ROLES_PLANTILLA_CRUD
-from evaluaciones.views import ROLES_LECTURA as ROLES_PLANTILLA_LECTURA
-from evaluaciones.views_ciclos import ROLES_CRUD as ROLES_CICLO_CRUD
-from evaluaciones.views_ciclos import ROLES_LECTURA as ROLES_CICLO_LECTURA
-from evaluaciones.views_flujo import ROLES_FLUJO_PROPIO, _ip, _puede_ver_resultado
 
 
 def _map_respuestas(filas, puntaje, comentario):
@@ -60,6 +64,14 @@ def _error(exc: EvaluacionesError):
     return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
 
+def _ocultar_autoevaluacion(data):
+    for item in data.get("respuestas") or []:
+        item["puntaje_empleado"] = None
+        item["comentario_empleado"] = ""
+        item["brecha"] = None
+    return data
+
+
 class PlantillaViewSet(viewsets.ModelViewSet):
     serializer_class = PlantillaSerializer
     permission_classes = [RolPermission, EmpresaActivaPermission]
@@ -67,9 +79,9 @@ class PlantillaViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ("list", "retrieve"):
-            self.roles_permitidos = ROLES_PLANTILLA_LECTURA
+            self.roles_permitidos = ROLES_LECTURA
         else:
-            self.roles_permitidos = ROLES_PLANTILLA_CRUD
+            self.roles_permitidos = ROLES_CRUD
         return super().get_permissions()
 
     def get_queryset(self):
@@ -101,9 +113,9 @@ class CicloViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ("list", "retrieve"):
-            self.roles_permitidos = ROLES_CICLO_LECTURA
+            self.roles_permitidos = ROLES_LECTURA
         else:
-            self.roles_permitidos = ROLES_CICLO_CRUD
+            self.roles_permitidos = ROLES_CRUD
         return super().get_permissions()
 
     def get_queryset(self):
@@ -213,7 +225,7 @@ class EvaluacionViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=["get"])
     def equipo(self, request):
-        if request.user.rol != Usuario.Rol.SUPERVISOR:
+        if request.user.rol not in ROLES_SUPERVISOR:
             return Response(
                 {"detail": "No tenés permiso para acceder a esta sección."},
                 status=status.HTTP_403_FORBIDDEN,
@@ -249,10 +261,28 @@ class EvaluacionViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=True, methods=["get", "put"])
     def supervisar(self, request, pk=None):
         evaluacion = self.get_object()
-        if request.user.rol != Usuario.Rol.SUPERVISOR or evaluacion.evaluador_id != request.user.pk:
+        if (
+            request.user.rol not in ROLES_SUPERVISOR
+            or evaluacion.evaluador_id != request.user.pk
+        ):
             return Response(status=status.HTTP_403_FORBIDDEN)
+        if evaluacion.estado in (
+            Evaluacion.Estado.PENDIENTE_AUTO,
+            Evaluacion.Estado.AUTO_BORRADOR,
+        ):
+            return Response(
+                {
+                    "detail": (
+                        "El supervisor no puede evaluar antes de que "
+                        "se complete la autoevaluación."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
         if request.method == "GET":
-            return self._detalle(evaluacion)
+            respuesta = self._detalle(evaluacion)
+            _ocultar_autoevaluacion(respuesta.data)
+            return respuesta
         serializer = SupervisarInputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:
@@ -271,7 +301,9 @@ class EvaluacionViewSet(viewsets.ReadOnlyModelViewSet):
             )
         except EvaluacionesError as exc:
             return _error(exc)
-        return self._detalle(evaluacion)
+        respuesta = self._detalle(evaluacion)
+        _ocultar_autoevaluacion(respuesta.data)
+        return respuesta
 
     @action(detail=True, methods=["get"])
     def resultado(self, request, pk=None):
@@ -385,10 +417,17 @@ class ResultadoPdfView(APIView):
         )
         if not _puede_ver_resultado(request.user, evaluacion):
             return Response(status=status.HTTP_403_FORBIDDEN)
-        if not evaluacion.esta_cerrada and not _es_rrhh(request.user):
-            if not evaluacion.comparacion_revelada:
-                return Response(status=status.HTTP_403_FORBIDDEN)
         contenido = exportar_resultado_pdf(evaluacion, usuario=request.user)
+        registrar_auditoria(
+            request,
+            Accion.EXPORTAR,
+            instance=evaluacion,
+            payload={
+                "formato": "pdf",
+                "tipo": "resultado_evaluacion",
+                "evaluacion_id": evaluacion.pk,
+            },
+        )
         response = HttpResponse(contenido, content_type=CONTENT_TYPE_PDF)
         response["Content-Disposition"] = f'inline; filename="{nombre_archivo_pdf(evaluacion)}"'
         return response
