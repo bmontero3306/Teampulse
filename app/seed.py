@@ -466,10 +466,7 @@ def _respuestas(evaluacion, campo_puntaje, campo_comentario, puntaje, comentario
 
 def _avanzar_auto(evaluacion, usuario, enviar, puntaje=4):
     evaluacion.refresh_from_db()
-    if evaluacion.estado not in (
-        Evaluacion.Estado.PENDIENTE_AUTO,
-        Evaluacion.Estado.AUTO_BORRADOR,
-    ):
+    if evaluacion.estado != Evaluacion.Estado.AUTOEVALUACION:
         return evaluacion
     return guardar_autoevaluacion(
         evaluacion,
@@ -487,10 +484,7 @@ def _avanzar_auto(evaluacion, usuario, enviar, puntaje=4):
 
 def _avanzar_supervisor(evaluacion, supervisor, cerrar, puntaje=5):
     evaluacion.refresh_from_db()
-    if evaluacion.estado not in (
-        Evaluacion.Estado.AUTO_COMPLETA,
-        Evaluacion.Estado.SUPERVISOR_BORRADOR,
-    ):
+    if evaluacion.estado != Evaluacion.Estado.SUPERVISOR:
         return evaluacion
     return guardar_eval_supervisor(
         evaluacion,
@@ -1285,19 +1279,14 @@ def _seed_competencias_y_plantillas(empresa):
 
 
 def _completar_item_demo(item, evaluacion):
-    if evaluacion.estado not in (
-        Evaluacion.Estado.PENDIENTE_AUTO,
-        Evaluacion.Estado.AUTO_BORRADOR,
-    ):
+    if evaluacion.estado != Evaluacion.Estado.AUTOEVALUACION:
         if item.criterio.es_escala and item.puntaje_empleado is None:
             item.puntaje_empleado = 4
         if not (item.comentario_empleado or "").strip():
             item.comentario_empleado = "Comentario demo de autoevaluación."
     if evaluacion.estado not in (
-        Evaluacion.Estado.PENDIENTE_AUTO,
-        Evaluacion.Estado.AUTO_BORRADOR,
-        Evaluacion.Estado.AUTO_COMPLETA,
-        Evaluacion.Estado.SUPERVISOR_BORRADOR,
+        Evaluacion.Estado.AUTOEVALUACION,
+        Evaluacion.Estado.SUPERVISOR,
     ):
         if item.criterio.es_escala and item.puntaje_supervisor is None:
             item.puntaje_supervisor = 5
@@ -1321,10 +1310,7 @@ def _sincronizar_respuestas(evaluacion):
 
 def _alinear_evaluaciones_ciclo(ciclo):
     """Reasigna plantilla solo si la evaluación todavía no avanzó el flujo."""
-    editables = (
-        Evaluacion.Estado.PENDIENTE_AUTO,
-        Evaluacion.Estado.AUTO_BORRADOR,
-    )
+    editables = (Evaluacion.Estado.AUTOEVALUACION,)
     for evaluacion in Evaluacion.objects.filter(ciclo=ciclo).select_related(
         "evaluado", "evaluado__puesto", "plantilla"
     ):

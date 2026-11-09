@@ -36,7 +36,8 @@ class AyudaApiTests(APITestCase):
         self.assertEqual(flujo.status_code, 200)
         self.assertEqual(flujo.data["titulo"], "Flujo de una evaluación")
         texto = " ".join(flujo.data["cuerpo"])
-        self.assertIn("Pendiente de autoevaluación", texto)
+        self.assertIn("Autoevaluación", texto)
+        self.assertIn("reunión si se pidió", texto)
         self.assertIn("supervisor no ve la autoevaluación", texto)
 
     def test_empleado_no_ve_paginas_de_rrhh(self):

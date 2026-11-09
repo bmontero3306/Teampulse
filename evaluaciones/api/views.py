@@ -187,6 +187,7 @@ class CicloViewSet(viewsets.ModelViewSet):
             Evaluacion.objects.for_empresa(request.empresa)
             .filter(ciclo=ciclo)
             .select_related("evaluado", "evaluador", "puesto", "ciclo", "plantilla")
+            .prefetch_related("respuestas")
         )
         return Response(EvaluacionListaSerializer(qs, many=True).data)
 
@@ -266,10 +267,7 @@ class EvaluacionViewSet(viewsets.ReadOnlyModelViewSet):
             or evaluacion.evaluador_id != request.user.pk
         ):
             return Response(status=status.HTTP_403_FORBIDDEN)
-        if evaluacion.estado in (
-            Evaluacion.Estado.PENDIENTE_AUTO,
-            Evaluacion.Estado.AUTO_BORRADOR,
-        ):
+        if evaluacion.estado == Evaluacion.Estado.AUTOEVALUACION:
             return Response(
                 {
                     "detail": (
@@ -322,7 +320,7 @@ class EvaluacionViewSet(viewsets.ReadOnlyModelViewSet):
             and evaluacion.estado == Evaluacion.Estado.PENDIENTE_CONFORMIDAD
         )
         data["puede_reunion"] = (
-            evaluacion.estado == Evaluacion.Estado.PENDIENTE_COMPARACION
+            evaluacion.estado == Evaluacion.Estado.PENDIENTE_REUNION
             and (
                 evaluacion.evaluador_id == request.user.pk or _es_rrhh(request.user)
             )

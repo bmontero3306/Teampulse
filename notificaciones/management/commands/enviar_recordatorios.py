@@ -46,15 +46,9 @@ class Command(BaseCommand):
             )
             return []
 
-        pendientes_auto = (
-            Evaluacion.Estado.PENDIENTE_AUTO,
-            Evaluacion.Estado.AUTO_BORRADOR,
-        )
-        pendientes_supervisor = (
-            Evaluacion.Estado.AUTO_COMPLETA,
-            Evaluacion.Estado.SUPERVISOR_BORRADOR,
-        )
-        pendientes_reunion = (Evaluacion.Estado.PENDIENTE_COMPARACION,)
+        pendientes_auto = (Evaluacion.Estado.AUTOEVALUACION,)
+        pendientes_supervisor = (Evaluacion.Estado.SUPERVISOR,)
+        pendientes_reunion = (Evaluacion.Estado.PENDIENTE_REUNION,)
         pendientes_firma = (Evaluacion.Estado.PENDIENTE_CONFORMIDAD,)
         estados = (
             pendientes_auto

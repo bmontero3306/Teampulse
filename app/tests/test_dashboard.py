@@ -124,9 +124,9 @@ class DashboardKpisRealesTests(APITestCase):
 
     def test_admin_ve_kpis_numericos_con_ciclo_activo(self):
         supervisor = make_usuario(self.empresa, rol="supervisor", puesto=self.puesto)
-        self._eval(Evaluacion.Estado.PENDIENTE_AUTO, evaluador=None, sin_evaluador=True)
+        self._eval(Evaluacion.Estado.AUTOEVALUACION, evaluador=None, sin_evaluador=True)
         self._eval(
-            Evaluacion.Estado.AUTO_COMPLETA,
+            Evaluacion.Estado.SUPERVISOR,
             evaluador=supervisor,
             sin_evaluador=False,
         )
@@ -141,7 +141,7 @@ class DashboardKpisRealesTests(APITestCase):
             sin_evaluador=False,
         )
         self._eval(
-            Evaluacion.Estado.CERRADA_CON_OBS,
+            Evaluacion.Estado.CERRADA,
             evaluador=supervisor,
             sin_evaluador=False,
         )
@@ -183,7 +183,7 @@ class DashboardKpisRealesTests(APITestCase):
         evaluacion = make_evaluacion(
             self.ciclo,
             empleado,
-            estado=Evaluacion.Estado.PENDIENTE_AUTO,
+            estado=Evaluacion.Estado.AUTOEVALUACION,
         )
         self._eval(Evaluacion.Estado.CERRADA)
 
@@ -197,7 +197,7 @@ class DashboardKpisRealesTests(APITestCase):
         self.assertEqual(len(response.data["pendientes"]), 1)
         pendiente = response.data["pendientes"][0]
         self.assertEqual(pendiente["accion"], "Completar autoevaluación")
-        self.assertEqual(pendiente["estado"], Evaluacion.Estado.PENDIENTE_AUTO)
+        self.assertEqual(pendiente["estado"], Evaluacion.Estado.AUTOEVALUACION)
         self.assertEqual(pendiente["tipo"], "auto")
         self.assertEqual(
             pendiente["href"],
@@ -257,13 +257,13 @@ class DashboardKpisRealesTests(APITestCase):
             self.ciclo,
             pendiente,
             evaluador=supervisor,
-            estado=Evaluacion.Estado.PENDIENTE_AUTO,
+            estado=Evaluacion.Estado.AUTOEVALUACION,
         )
         make_evaluacion(
             self.ciclo,
             completa,
             evaluador=supervisor,
-            estado=Evaluacion.Estado.AUTO_COMPLETA,
+            estado=Evaluacion.Estado.SUPERVISOR,
         )
         self._auth(supervisor)
         response = self.client.get("/api/v1/dashboard/")
@@ -279,7 +279,7 @@ class DashboardKpisRealesTests(APITestCase):
         por_nombre = {item["evaluado"]: item for item in equipo["evaluaciones"]}
         self.assertEqual(
             por_nombre["Mario Pendiente"]["estado_display"],
-            "Pendiente de autoevaluación",
+            "Autoevaluación",
         )
         self.assertIsNone(response.data["kpis"])
         self.assertFalse(response.data["mostrar_kpis"])
@@ -293,7 +293,7 @@ class DashboardKpisRealesTests(APITestCase):
         make_evaluacion(
             self.ciclo,
             empleado,
-            estado=Evaluacion.Estado.PENDIENTE_COMPARACION,
+            estado=Evaluacion.Estado.PENDIENTE_REUNION,
         )
         self._auth(self.admin)
         kpis = self.client.get("/api/v1/dashboard/").data["kpis"]

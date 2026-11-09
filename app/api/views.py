@@ -27,6 +27,9 @@ def _pendiente_api(item):
         "accion": item["accion"],
         "href": href,
         "estado": evaluacion.estado,
+        "estado_display": evaluacion.etiqueta_estado,
+        "en_borrador": evaluacion.en_borrador,
+        "con_observacion": evaluacion.con_observacion,
         "ciclo": evaluacion.ciclo.nombre,
     }
 
@@ -74,7 +77,9 @@ class DashboardView(APIView):
                         "id": ev.pk,
                         "evaluado": ev.evaluado.get_full_name() or ev.evaluado.email,
                         "estado": ev.estado,
-                        "estado_display": ev.get_estado_display(),
+                        "estado_display": ev.etiqueta_estado,
+                        "en_borrador": ev.en_borrador,
+                        "con_observacion": ev.con_observacion,
                     }
                     for ev in equipo["evaluaciones"]
                 ],
@@ -192,14 +197,15 @@ CUERPO = {
         "Pausar impide editar evaluaciones. Reprogramar cambia las fechas y avisa a los participantes.",
     ],
     "flujo": [
-        "Pendiente de autoevaluación → borrador → enviada.",
+        "Autoevaluación → evaluación del supervisor → reunión si se pidió → conformidad → cerrada.",
+        "Guardar sin enviar no cambia la fase: queda en borrador dentro del mismo turno.",
         "El supervisor no ve la autoevaluación hasta que el empleado la envía.",
         "Al cerrar, el supervisor puede pedir reunión de feedback o pasar directo a la conformidad.",
-        "Después de la reunión (o si se omite) el empleado firma o deja una observación.",
+        "Después de la reunión (o si se omite) el empleado firma. Un comentario deja la evaluación cerrada con observación.",
     ],
     "conformidad": [
         "La firma guarda fecha, IP y un hash de los puntajes.",
-        "Conforme cierra la evaluación. Con observación queda cerrada con observación.",
+        "Conforme cierra la evaluación. Un comentario de disconformidad queda en el cierre; el estado sigue siendo cerrada.",
         "El comprobante PDF está disponible cuando la comparación ya se reveló.",
     ],
     "notificaciones": [

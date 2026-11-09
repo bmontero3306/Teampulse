@@ -70,7 +70,7 @@ def escenario_iso_basico():
         empleado_b,
         evaluador=supervisor,
         puesto=puesto,
-        estado=Evaluacion.Estado.PENDIENTE_AUTO,
+        estado=Evaluacion.Estado.AUTOEVALUACION,
     )
     return {
         "empresa": empresa,

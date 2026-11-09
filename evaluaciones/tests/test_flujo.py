@@ -84,7 +84,7 @@ class SupervisorAntesDeAutoTests(CicloBaseTestCase):
     def test_supervisor_no_evalua_antes_de_auto(self):
         activar_ciclo(self.ciclo, self.admin)
         evaluacion = Evaluacion.objects.get(ciclo=self.ciclo, evaluado=self.empleado)
-        self.assertEqual(evaluacion.estado, Evaluacion.Estado.PENDIENTE_AUTO)
+        self.assertEqual(evaluacion.estado, Evaluacion.Estado.AUTOEVALUACION)
 
         with self.assertRaises(EvaluacionesError):
             guardar_eval_supervisor(
@@ -135,7 +135,9 @@ class AutoevaluacionYFirmaTests(CicloBaseTestCase):
         )
         self.assertEqual(borrador.status_code, 200, borrador.content)
         evaluacion.refresh_from_db()
-        self.assertEqual(evaluacion.estado, Evaluacion.Estado.AUTO_BORRADOR)
+        self.assertEqual(evaluacion.estado, Evaluacion.Estado.AUTOEVALUACION)
+        self.assertTrue(borrador.data["en_borrador"])
+        self.assertEqual(borrador.data["estado_display"], "Autoevaluación en borrador")
 
         enviar = self.client.put(
             f"/api/v1/evaluaciones/{evaluacion.pk}/autoevaluacion/",
@@ -149,7 +151,7 @@ class AutoevaluacionYFirmaTests(CicloBaseTestCase):
         )
         self.assertEqual(enviar.status_code, 200, enviar.content)
         evaluacion.refresh_from_db()
-        self.assertEqual(evaluacion.estado, Evaluacion.Estado.AUTO_COMPLETA)
+        self.assertEqual(evaluacion.estado, Evaluacion.Estado.SUPERVISOR)
         self.assertIsNotNone(evaluacion.enviada_auto_en)
 
         otra = self.client.put(
@@ -164,7 +166,7 @@ class AutoevaluacionYFirmaTests(CicloBaseTestCase):
         )
         self.assertEqual(otra.status_code, 400)
         evaluacion.refresh_from_db()
-        self.assertEqual(evaluacion.estado, Evaluacion.Estado.AUTO_COMPLETA)
+        self.assertEqual(evaluacion.estado, Evaluacion.Estado.SUPERVISOR)
         self.assertEqual(evaluacion.respuestas.get().puntaje_empleado, 4)
 
     def test_comentario_obligatorio_al_enviar(self):
@@ -262,8 +264,10 @@ class AutoevaluacionYFirmaTests(CicloBaseTestCase):
         )
         self.assertEqual(response.status_code, 200, response.content)
         evaluacion.refresh_from_db()
-        self.assertEqual(evaluacion.estado, Evaluacion.Estado.CERRADA_CON_OBS)
+        self.assertEqual(evaluacion.estado, Evaluacion.Estado.CERRADA)
         self.assertIn("No coincido", evaluacion.comentario_empleado_cierre)
+        self.assertTrue(response.data["con_observacion"])
+        self.assertEqual(response.data["estado_display"], "Cerrada con observación")
         resultado = self.client.get(f"/api/v1/evaluaciones/{evaluacion.pk}/resultado/")
         self.assertEqual(resultado.status_code, 200)
         self.assertEqual(resultado.data["firma_hash"], evaluacion.firma_hash)
@@ -381,7 +385,7 @@ class FlujoCiego180Tests(CicloBaseTestCase):
 
     def test_cerrar_jefe_revela_comparacion_con_brecha(self):
         evaluacion = self._avanzar_hasta_comparacion()
-        self.assertEqual(evaluacion.estado, Evaluacion.Estado.PENDIENTE_COMPARACION)
+        self.assertEqual(evaluacion.estado, Evaluacion.Estado.PENDIENTE_REUNION)
         self.assertEqual(evaluacion.respuestas.get().brecha, 1)
         self.assertEqual(evaluacion.respuestas.get().brecha_display, "+1")
 
@@ -468,7 +472,7 @@ class FlujoCiego180Tests(CicloBaseTestCase):
         )
         self.assertEqual(response.status_code, 200, response.content)
         evaluacion.refresh_from_db()
-        self.assertEqual(evaluacion.estado, Evaluacion.Estado.PENDIENTE_COMPARACION)
+        self.assertEqual(evaluacion.estado, Evaluacion.Estado.PENDIENTE_REUNION)
 
     def test_cerrar_sin_reunion_habilita_firma(self):
         activar_ciclo(self.ciclo, self.admin)

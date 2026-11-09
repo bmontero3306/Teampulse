@@ -78,7 +78,7 @@ class RecorridoFlujoAceptacionTests(CicloBaseTestCase):
         activar = self.client.post(f"/api/v1/ciclos/{self.ciclo.pk}/activar/")
         self.assertEqual(activar.status_code, 200, activar.content)
         evaluacion = Evaluacion.objects.get(ciclo=self.ciclo, evaluado=self.empleado)
-        self.assertEqual(evaluacion.estado, Evaluacion.Estado.PENDIENTE_AUTO)
+        self.assertEqual(evaluacion.estado, Evaluacion.Estado.AUTOEVALUACION)
         _logout(self.client)
 
         login_emp = _login(self.client, self.empleado.email)
@@ -87,7 +87,7 @@ class RecorridoFlujoAceptacionTests(CicloBaseTestCase):
         self.assertEqual(mias.status_code, 200, mias.content)
         self.assertTrue(any(item["ciclo_nombre"] == "Ciclo Q1" for item in mias.data))
         self.assertTrue(
-            any(item["estado"] == Evaluacion.Estado.PENDIENTE_AUTO for item in mias.data)
+            any(item["estado"] == Evaluacion.Estado.AUTOEVALUACION for item in mias.data)
         )
         auto_get = self.client.get(f"/api/v1/evaluaciones/{evaluacion.pk}/autoevaluacion/")
         self.assertEqual(auto_get.status_code, 200, auto_get.content)
@@ -105,7 +105,8 @@ class RecorridoFlujoAceptacionTests(CicloBaseTestCase):
         )
         self.assertEqual(borrador.status_code, 200, borrador.content)
         evaluacion.refresh_from_db()
-        self.assertEqual(evaluacion.estado, Evaluacion.Estado.AUTO_BORRADOR)
+        self.assertEqual(evaluacion.estado, Evaluacion.Estado.AUTOEVALUACION)
+        self.assertTrue(borrador.data["en_borrador"])
 
         enviar = self.client.put(
             f"/api/v1/evaluaciones/{evaluacion.pk}/autoevaluacion/",
@@ -123,7 +124,7 @@ class RecorridoFlujoAceptacionTests(CicloBaseTestCase):
         )
         self.assertEqual(enviar.status_code, 200, enviar.content)
         evaluacion.refresh_from_db()
-        self.assertEqual(evaluacion.estado, Evaluacion.Estado.AUTO_COMPLETA)
+        self.assertEqual(evaluacion.estado, Evaluacion.Estado.SUPERVISOR)
         _logout(self.client)
 
         login_sup = _login(self.client, self.supervisor.email)
@@ -452,8 +453,8 @@ class SeedDemoAceptacionTests(APITestCase):
         ev3 = Evaluacion.objects.get(
             ciclo=segundo["ciclo"], evaluado=segundo["empleado_3"]
         )
-        self.assertEqual(ev1.estado, Evaluacion.Estado.PENDIENTE_AUTO)
-        self.assertEqual(ev2.estado, Evaluacion.Estado.AUTO_COMPLETA)
+        self.assertEqual(ev1.estado, Evaluacion.Estado.AUTOEVALUACION)
+        self.assertEqual(ev2.estado, Evaluacion.Estado.SUPERVISOR)
         self.assertEqual(ev3.estado, Evaluacion.Estado.CERRADA)
         self.assertEqual(segundo["ciclo"].estado, CicloEvaluacion.Estado.ACTIVO)
 

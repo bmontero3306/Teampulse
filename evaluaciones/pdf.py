@@ -412,7 +412,7 @@ def _tabla_encabezado(evaluacion, empresa, nro, styles_bundle):
             styles_bundle["dato"],
         ),
         Paragraph(
-            f"<b>Estado:</b> {_escape(evaluacion.get_estado_display())}",
+            f"<b>Estado:</b> {_escape(evaluacion.etiqueta_estado)}",
             styles_bundle["dato"],
         ),
     ]

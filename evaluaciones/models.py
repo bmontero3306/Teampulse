@@ -275,14 +275,11 @@ class CicloEvaluacion(models.Model):
 
 class Evaluacion(models.Model):
     class Estado(models.TextChoices):
-        PENDIENTE_AUTO = "pendiente_auto", "Pendiente de autoevaluación"
-        AUTO_BORRADOR = "auto_borrador", "Autoevaluación en borrador"
-        AUTO_COMPLETA = "auto_completa", "Autoevaluación completa"
-        SUPERVISOR_BORRADOR = "supervisor_borrador", "Evaluación de supervisor en borrador"
-        PENDIENTE_COMPARACION = "pendiente_comparacion", "Pendiente de comparación"
+        AUTOEVALUACION = "autoevaluacion", "Autoevaluación"
+        SUPERVISOR = "evaluacion_supervisor", "Evaluación del supervisor"
+        PENDIENTE_REUNION = "pendiente_reunion", "Pendiente de reunión"
         PENDIENTE_CONFORMIDAD = "pendiente_conformidad", "Pendiente de conformidad"
         CERRADA = "cerrada", "Cerrada"
-        CERRADA_CON_OBS = "cerrada_con_obs", "Cerrada con observación"
 
     ciclo = models.ForeignKey(
         CicloEvaluacion,
@@ -326,7 +323,7 @@ class Evaluacion(models.Model):
         "estado",
         max_length=30,
         choices=Estado.choices,
-        default=Estado.PENDIENTE_AUTO,
+        default=Estado.AUTOEVALUACION,
     )
     sin_evaluador = models.BooleanField("sin evaluador", default=False)
     comentario_empleado_cierre = models.TextField(
@@ -377,16 +374,70 @@ class Evaluacion(models.Model):
 
     @property
     def esta_cerrada(self):
-        return self.estado in (self.Estado.CERRADA, self.Estado.CERRADA_CON_OBS)
+        return self.estado == self.Estado.CERRADA
 
     @property
     def comparacion_revelada(self):
         return self.estado in (
-            self.Estado.PENDIENTE_COMPARACION,
+            self.Estado.PENDIENTE_REUNION,
             self.Estado.PENDIENTE_CONFORMIDAD,
             self.Estado.CERRADA,
-            self.Estado.CERRADA_CON_OBS,
         )
+
+    def _respuestas_cacheadas(self):
+        cache = getattr(self, "_prefetched_objects_cache", None) or {}
+        if "respuestas" in cache:
+            return cache["respuestas"]
+        return None
+
+    @property
+    def en_borrador(self):
+        """Hay contenido guardado y la fase todavía no se envió o cerró."""
+        if self.estado == self.Estado.AUTOEVALUACION:
+            respuestas = self._respuestas_cacheadas()
+            if respuestas is None:
+                return self.respuestas.filter(
+                    models.Q(puntaje_empleado__isnull=False)
+                    | ~models.Q(comentario_empleado="")
+                ).exists()
+            return any(
+                item.puntaje_empleado is not None
+                or (item.comentario_empleado or "").strip()
+                for item in respuestas
+            )
+        if self.estado == self.Estado.SUPERVISOR:
+            if (self.feedback_supervisor or "").strip():
+                return True
+            respuestas = self._respuestas_cacheadas()
+            if respuestas is None:
+                return self.respuestas.filter(
+                    models.Q(puntaje_supervisor__isnull=False)
+                    | ~models.Q(comentario_supervisor="")
+                ).exists()
+            return any(
+                item.puntaje_supervisor is not None
+                or (item.comentario_supervisor or "").strip()
+                for item in respuestas
+            )
+        return False
+
+    @property
+    def con_observacion(self):
+        return self.esta_cerrada and bool((self.comentario_empleado_cierre or "").strip())
+
+    @property
+    def etiqueta_estado(self):
+        if self.estado == self.Estado.AUTOEVALUACION:
+            if self.en_borrador:
+                return "Autoevaluación en borrador"
+            return "Autoevaluación"
+        if self.estado == self.Estado.SUPERVISOR:
+            if self.en_borrador:
+                return "Evaluación del supervisor en borrador"
+            return "Evaluación del supervisor"
+        if self.con_observacion:
+            return "Cerrada con observación"
+        return self.get_estado_display()
 
 
 class RespuestaItem(models.Model):

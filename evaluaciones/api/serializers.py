@@ -349,7 +349,9 @@ class EvaluacionListaSerializer(serializers.ModelSerializer):
     evaluado = UsuarioBreveSerializer(read_only=True)
     evaluador = UsuarioBreveSerializer(read_only=True)
     puesto_nombre = serializers.CharField(source="puesto.nombre", read_only=True)
-    estado_display = serializers.CharField(source="get_estado_display", read_only=True)
+    estado_display = serializers.CharField(source="etiqueta_estado", read_only=True)
+    en_borrador = serializers.BooleanField(read_only=True)
+    con_observacion = serializers.BooleanField(read_only=True)
     esta_cerrada = serializers.BooleanField(read_only=True)
     comparacion_revelada = serializers.BooleanField(read_only=True)
 
@@ -361,6 +363,8 @@ class EvaluacionListaSerializer(serializers.ModelSerializer):
             "ciclo_nombre",
             "estado",
             "estado_display",
+            "en_borrador",
+            "con_observacion",
             "evaluado",
             "evaluador",
             "puesto",

@@ -6,31 +6,25 @@ from django.urls import NoReverseMatch, reverse
 from evaluaciones.models import CicloEvaluacion, Evaluacion
 
 ESTADOS_AUTO = [
-    Evaluacion.Estado.AUTO_COMPLETA,
-    Evaluacion.Estado.SUPERVISOR_BORRADOR,
-    Evaluacion.Estado.PENDIENTE_COMPARACION,
+    Evaluacion.Estado.SUPERVISOR,
+    Evaluacion.Estado.PENDIENTE_REUNION,
     Evaluacion.Estado.PENDIENTE_CONFORMIDAD,
     Evaluacion.Estado.CERRADA,
-    Evaluacion.Estado.CERRADA_CON_OBS,
 ]
 ESTADOS_SUPERVISOR = [
-    Evaluacion.Estado.PENDIENTE_COMPARACION,
+    Evaluacion.Estado.PENDIENTE_REUNION,
     Evaluacion.Estado.PENDIENTE_CONFORMIDAD,
     Evaluacion.Estado.CERRADA,
-    Evaluacion.Estado.CERRADA_CON_OBS,
 ]
 ESTADOS_FIRMADAS = [
     Evaluacion.Estado.CERRADA,
-    Evaluacion.Estado.CERRADA_CON_OBS,
 ]
 ESTADOS_SIN_AUTO = [
-    Evaluacion.Estado.PENDIENTE_AUTO,
-    Evaluacion.Estado.AUTO_BORRADOR,
+    Evaluacion.Estado.AUTOEVALUACION,
 ]
 ESTADOS_PENDIENTE_EMPLEADO = [
-    Evaluacion.Estado.PENDIENTE_AUTO,
-    Evaluacion.Estado.AUTO_BORRADOR,
-    Evaluacion.Estado.PENDIENTE_COMPARACION,
+    Evaluacion.Estado.AUTOEVALUACION,
+    Evaluacion.Estado.PENDIENTE_REUNION,
     Evaluacion.Estado.PENDIENTE_CONFORMIDAD,
 ]
 
@@ -89,6 +83,7 @@ def pendientes_empleado(user, empresa, ciclo):
             estado__in=ESTADOS_PENDIENTE_EMPLEADO,
         )
         .select_related("ciclo", "evaluado")
+        .prefetch_related("respuestas")
     )
     items = []
     for evaluacion in qs:
@@ -105,7 +100,7 @@ def pendientes_empleado(user, empresa, ciclo):
                     ),
                 }
             )
-        elif evaluacion.estado == Evaluacion.Estado.PENDIENTE_COMPARACION:
+        elif evaluacion.estado == Evaluacion.Estado.PENDIENTE_REUNION:
             items.append(
                 {
                     "evaluacion": evaluacion,
@@ -188,6 +183,7 @@ def resumen_equipo(user, empresa, ciclo):
         Evaluacion.objects.for_empresa(empresa)
         .filter(ciclo=ciclo, evaluador=user)
         .select_related("evaluado", "ciclo")
+        .prefetch_related("respuestas")
     )
     total = qs.count()
     auto_hechas = qs.filter(estado__in=ESTADOS_AUTO).count()

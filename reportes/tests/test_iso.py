@@ -38,6 +38,8 @@ CLAVES_FILA = {
     "puesto",
     "estado",
     "estado_display",
+    "en_borrador",
+    "con_observacion",
     "enviada_auto_en",
     "cerrada_supervisor_en",
     "firmada_en",
@@ -247,6 +249,21 @@ class IsoFiltroTenantTests(IsoApiTestCase):
         self.assertEqual(self._ids(firmadas), {self.eval_a.pk})
         sin_firmar = self.client.get(URL_ISO, {"estado": "no_firmada"})
         self.assertNotIn(self.eval_a.pk, self._ids(sin_firmar))
+
+    def test_filtro_con_observacion(self):
+        datos = escenario_iso_basico()
+        firmada = datos["firmada"]
+        firmada.comentario_empleado_cierre = "No coincido"
+        firmada.save(update_fields=["comentario_empleado_cierre"])
+        reporte = construir_iso_reporte(
+            {"empresa": datos["empresa"], "estado": "con_observacion"}
+        )
+        self.assertEqual(list(reporte.queryset.values_list("pk", flat=True)), [firmada.pk])
+        self.assertEqual(reporte.indicadores.con_observacion, 1)
+        conforme = construir_iso_reporte(
+            {"empresa": datos["empresa"], "estado": Evaluacion.Estado.CERRADA}
+        )
+        self.assertNotIn(firmada.pk, set(conforme.queryset.values_list("pk", flat=True)))
 
     def test_fecha_invalida_no_aplica_filtros(self):
         self.auth(self.admin_a)

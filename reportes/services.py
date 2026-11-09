@@ -13,29 +13,21 @@ from evaluaciones.models import Evaluacion
 
 ESTADOS_AUTO_COMPLETA = frozenset(
     {
-        Evaluacion.Estado.AUTO_COMPLETA,
-        Evaluacion.Estado.SUPERVISOR_BORRADOR,
-        Evaluacion.Estado.PENDIENTE_COMPARACION,
+        Evaluacion.Estado.SUPERVISOR,
+        Evaluacion.Estado.PENDIENTE_REUNION,
         Evaluacion.Estado.PENDIENTE_CONFORMIDAD,
         Evaluacion.Estado.CERRADA,
-        Evaluacion.Estado.CERRADA_CON_OBS,
     }
 )
 ESTADOS_SUPERVISOR = frozenset(
     {
-        Evaluacion.Estado.PENDIENTE_COMPARACION,
+        Evaluacion.Estado.PENDIENTE_REUNION,
         Evaluacion.Estado.PENDIENTE_CONFORMIDAD,
         Evaluacion.Estado.CERRADA,
-        Evaluacion.Estado.CERRADA_CON_OBS,
     }
 )
-ESTADOS_FIRMADAS = frozenset(
-    {
-        Evaluacion.Estado.CERRADA,
-        Evaluacion.Estado.CERRADA_CON_OBS,
-    }
-)
-ESTADOS_OBSERVACION = frozenset({Evaluacion.Estado.CERRADA_CON_OBS})
+ESTADOS_FIRMADAS = frozenset({Evaluacion.Estado.CERRADA})
+CONFORMIDAD_CON_OBSERVACION = "con_observacion"
 
 CONTENT_TYPE_PDF = "application/pdf"
 CONTENT_TYPE_EXCEL = (
@@ -95,7 +87,9 @@ def generar_iso_queryset(filtros: dict) -> QuerySet:
         "puesto",
         "puesto__area",
         "plantilla",
-    ).order_by("ciclo__fecha_inicio", "evaluado__last_name", "evaluado__email", "pk")
+    ).prefetch_related("respuestas").order_by(
+        "ciclo__fecha_inicio", "evaluado__last_name", "evaluado__email", "pk"
+    )
     qs = for_empresa(qs, empresa)
 
     ciclo = filtros.get("ciclo")
@@ -114,6 +108,15 @@ def generar_iso_queryset(filtros: dict) -> QuerySet:
     if estado:
         if estado == CONFORMIDAD_NO_FIRMADA:
             qs = qs.exclude(estado__in=ESTADOS_FIRMADAS)
+        elif estado == CONFORMIDAD_CON_OBSERVACION:
+            qs = qs.filter(estado=Evaluacion.Estado.CERRADA).exclude(
+                comentario_empleado_cierre=""
+            )
+        elif estado == Evaluacion.Estado.CERRADA:
+            qs = qs.filter(
+                estado=Evaluacion.Estado.CERRADA,
+                comentario_empleado_cierre="",
+            )
         else:
             qs = qs.filter(estado=estado)
 
@@ -133,7 +136,7 @@ def calcular_indicadores_iso(queryset: QuerySet) -> IsoIndicadores:
     auto_completas = sum(1 for ev in evaluaciones if ev.estado in ESTADOS_AUTO_COMPLETA)
     supervisor = sum(1 for ev in evaluaciones if ev.estado in ESTADOS_SUPERVISOR)
     firmadas = sum(1 for ev in evaluaciones if ev.estado in ESTADOS_FIRMADAS)
-    con_obs = sum(1 for ev in evaluaciones if ev.estado in ESTADOS_OBSERVACION)
+    con_obs = sum(1 for ev in evaluaciones if ev.con_observacion)
     return IsoIndicadores(
         total=total,
         auto_completas=auto_completas,
@@ -530,7 +533,7 @@ def _fila_detalle(ev: Evaluacion) -> list[str]:
         _nombre_usuario(ev.evaluador) if ev.evaluador_id else "—",
         area or "—",
         ev.ciclo.nombre if ev.ciclo_id else "—",
-        ev.get_estado_display(),
+        ev.etiqueta_estado,
         _texto_dt(ev.enviada_auto_en),
         _texto_dt(ev.cerrada_supervisor_en),
         _texto_dt(ev.firmada_en),

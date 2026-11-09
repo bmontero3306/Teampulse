@@ -117,7 +117,7 @@ def make_evaluacion(ciclo, evaluado, **kwargs):
         "evaluador": evaluador,
         "puesto": puesto,
         "plantilla": plantilla,
-        "estado": Evaluacion.Estado.PENDIENTE_AUTO,
+        "estado": Evaluacion.Estado.AUTOEVALUACION,
         "sin_evaluador": sin_evaluador,
     }
     datos.update(kwargs)

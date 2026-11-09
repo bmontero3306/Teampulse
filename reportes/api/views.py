@@ -12,6 +12,7 @@ from empresas.models import Empresa
 from evaluaciones.models import CicloEvaluacion, Evaluacion
 from organizacion.models import Area
 from reportes.services import (
+    CONFORMIDAD_CON_OBSERVACION,
     CONFORMIDAD_NO_FIRMADA,
     CONTENT_TYPE_EXCEL,
     CONTENT_TYPE_PDF,
@@ -24,10 +25,10 @@ from reportes.services import (
 _ESTADOS_FILTRO = frozenset(
     {
         "",
-        Evaluacion.Estado.PENDIENTE_COMPARACION,
+        Evaluacion.Estado.PENDIENTE_REUNION,
         Evaluacion.Estado.PENDIENTE_CONFORMIDAD,
         Evaluacion.Estado.CERRADA,
-        Evaluacion.Estado.CERRADA_CON_OBS,
+        CONFORMIDAD_CON_OBSERVACION,
         CONFORMIDAD_NO_FIRMADA,
     }
 )
@@ -141,7 +142,9 @@ def _iso_json(reporte):
                 "area": _area_evaluacion(ev),
                 "puesto": ev.puesto.nombre if ev.puesto_id else None,
                 "estado": ev.estado,
-                "estado_display": ev.get_estado_display(),
+                "estado_display": ev.etiqueta_estado,
+                "en_borrador": ev.en_borrador,
+                "con_observacion": ev.con_observacion,
                 "enviada_auto_en": ev.enviada_auto_en,
                 "cerrada_supervisor_en": ev.cerrada_supervisor_en,
                 "firmada_en": ev.firmada_en,

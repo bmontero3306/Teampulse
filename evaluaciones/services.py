@@ -263,7 +263,7 @@ def asignar_evaluaciones_ciclo(ciclo):
                 "evaluador": evaluador,
                 "puesto": puesto,
                 "plantilla": plantilla,
-                "estado": Evaluacion.Estado.PENDIENTE_AUTO,
+                "estado": Evaluacion.Estado.AUTOEVALUACION,
                 "sin_evaluador": sin_eval,
             },
         )
@@ -408,10 +408,7 @@ def guardar_autoevaluacion(evaluacion, respuestas, enviar, usuario, request=None
     _asegurar_ciclo_editable(evaluacion.ciclo)
     if evaluacion.evaluado_id != getattr(usuario, "pk", None):
         raise EvaluacionesError("Solo el evaluado puede completar la autoevaluación.")
-    if evaluacion.estado not in (
-        Evaluacion.Estado.PENDIENTE_AUTO,
-        Evaluacion.Estado.AUTO_BORRADOR,
-    ):
+    if evaluacion.estado != Evaluacion.Estado.AUTOEVALUACION:
         raise EvaluacionesError(
             "No podés editar la autoevaluación después de enviarla."
         )
@@ -443,12 +440,9 @@ def guardar_autoevaluacion(evaluacion, respuestas, enviar, usuario, request=None
                 raise EvaluacionesError(
                     f"La devolución del empleado es obligatoria en «{item.criterio.competencia}»."
                 )
-        evaluacion.estado = Evaluacion.Estado.AUTO_COMPLETA
+        evaluacion.estado = Evaluacion.Estado.SUPERVISOR
         evaluacion.enviada_auto_en = timezone.now()
         evaluacion.save(update_fields=["estado", "enviada_auto_en"])
-    else:
-        evaluacion.estado = Evaluacion.Estado.AUTO_BORRADOR
-        evaluacion.save(update_fields=["estado"])
 
     RespuestaItem.objects.bulk_update(
         list(items.values()),
@@ -498,17 +492,11 @@ def guardar_eval_supervisor(
         raise EvaluacionesError(
             "Solo el evaluador asignado puede completar esta evaluación."
         )
-    if evaluacion.estado in (
-        Evaluacion.Estado.PENDIENTE_AUTO,
-        Evaluacion.Estado.AUTO_BORRADOR,
-    ):
+    if evaluacion.estado == Evaluacion.Estado.AUTOEVALUACION:
         raise EvaluacionesError(
             "El supervisor no puede evaluar antes de que se complete la autoevaluación."
         )
-    if evaluacion.estado not in (
-        Evaluacion.Estado.AUTO_COMPLETA,
-        Evaluacion.Estado.SUPERVISOR_BORRADOR,
-    ):
+    if evaluacion.estado != Evaluacion.Estado.SUPERVISOR:
         raise EvaluacionesError("Esta evaluación ya no admite cambios del supervisor.")
 
     items = _items_por_id(evaluacion)
@@ -546,7 +534,7 @@ def guardar_eval_supervisor(
                     f"La devolución del supervisor es obligatoria en «{item.criterio.competencia}»."
                 )
         if habilitar_reunion:
-            evaluacion.estado = Evaluacion.Estado.PENDIENTE_COMPARACION
+            evaluacion.estado = Evaluacion.Estado.PENDIENTE_REUNION
             siguiente = (
                 "El supervisor habilitó una reunión de feedback; "
                 "te avisaremos cuando se registre."
@@ -561,8 +549,7 @@ def guardar_eval_supervisor(
             update_fields=["estado", "feedback_supervisor", "cerrada_supervisor_en"]
         )
     else:
-        evaluacion.estado = Evaluacion.Estado.SUPERVISOR_BORRADOR
-        evaluacion.save(update_fields=["estado", "feedback_supervisor"])
+        evaluacion.save(update_fields=["feedback_supervisor"])
 
     RespuestaItem.objects.bulk_update(
         list(items.values()),
@@ -621,13 +608,12 @@ def firmar_conformidad(evaluacion, user, ip, observacion=None):
     evaluacion.firma_hash = calcular_firma_hash(
         evaluacion.pk, user.pk, ahora, puntajes
     )
+    evaluacion.estado = Evaluacion.Estado.CERRADA
     if observacion:
-        evaluacion.estado = Evaluacion.Estado.CERRADA_CON_OBS
         evaluacion.comentario_empleado_cierre = observacion
         tipo = CONFORMIDAD_OBSERVACION
         accion = "observar_conformidad"
     else:
-        evaluacion.estado = Evaluacion.Estado.CERRADA
         tipo = CONFORMIDAD_FIRMADA
         accion = "firmar_conformidad"
     campos = ["estado", "firmada_en", "ip_firma", "firma_hash"]
@@ -703,9 +689,9 @@ def registrar_reunion_feedback(
         raise EvaluacionesError(
             "Solo el evaluador o RRHH pueden registrar la reunión de feedback."
         )
-    if evaluacion.estado != Evaluacion.Estado.PENDIENTE_COMPARACION:
+    if evaluacion.estado != Evaluacion.Estado.PENDIENTE_REUNION:
         raise EvaluacionesError(
-            "La reunión de feedback se registra después de comparar ambas evaluaciones."
+            "La reunión de feedback se registra cuando el supervisor la pidió al cerrar."
         )
     if reunion_fecha is None:
         raise EvaluacionesError("La fecha de la reunión es obligatoria.")
@@ -758,9 +744,9 @@ def omitir_reunion_feedback(evaluacion, usuario, request=None):
         raise EvaluacionesError(
             "Solo el evaluador o RRHH pueden continuar sin reunión de feedback."
         )
-    if evaluacion.estado != Evaluacion.Estado.PENDIENTE_COMPARACION:
+    if evaluacion.estado != Evaluacion.Estado.PENDIENTE_REUNION:
         raise EvaluacionesError(
-            "Solo se puede omitir la reunión mientras la comparación está pendiente."
+            "Solo se puede omitir la reunión mientras está pendiente."
         )
     if not (evaluacion.feedback_supervisor or "").strip():
         raise EvaluacionesError(

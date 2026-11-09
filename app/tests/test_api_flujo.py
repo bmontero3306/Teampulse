@@ -103,7 +103,7 @@ class ApiFlujoTests(APITestCase):
         )
         self.assertEqual(enviado.status_code, 200, enviado.content)
         evaluacion.refresh_from_db()
-        self.assertEqual(evaluacion.estado, Evaluacion.Estado.AUTO_COMPLETA)
+        self.assertEqual(evaluacion.estado, Evaluacion.Estado.SUPERVISOR)
 
         self._auth(self.supervisor)
         cerrado = self.client.put(
