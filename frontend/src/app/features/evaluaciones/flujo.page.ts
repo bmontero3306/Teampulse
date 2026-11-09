@@ -51,7 +51,7 @@ import {
               <tr>
                 <td class="px-4 py-3 font-medium text-slate-900">{{ ev.ciclo_nombre }}</td>
                 <td class="px-4 py-3">
-                  <app-badge-estado-flujo [estado]="ev.estado" [etiqueta]="ev.estado_display" />
+                  <app-badge-estado-flujo [estado]="ev.estado" [etiqueta]="ev.estado_display" [conObservacion]="!!ev.con_observacion" />
                 </td>
                 <td class="px-4 py-3 text-slate-600 whitespace-nowrap">{{ vencimiento(ev) }}</td>
                 <td class="px-4 py-3 text-slate-600">{{ nombre(ev.evaluador) }}</td>
@@ -104,10 +104,10 @@ export class MiasPage {
   }
 
   accion(ev: EvaluacionLista): { ruta: string[]; texto: string } {
-    if (ev.estado === 'pendiente_auto' || ev.estado === 'auto_borrador') {
+    if (ev.estado === 'autoevaluacion') {
       return { ruta: ['/evaluaciones', String(ev.id), 'autoevaluacion'], texto: 'Completar' };
     }
-    if (ev.estado === 'pendiente_comparacion') {
+    if (ev.estado === 'pendiente_reunion') {
       return { ruta: ['/evaluaciones', String(ev.id), 'resultado'], texto: 'Ver comparación' };
     }
     if (ev.estado === 'pendiente_conformidad') {
@@ -142,7 +142,7 @@ export class MiasPage {
                 <td class="px-4 py-3 font-medium text-slate-900">{{ nombre(ev.evaluado) }}</td>
                 <td class="px-4 py-3 text-slate-600">{{ ev.ciclo_nombre }}</td>
                 <td class="px-4 py-3">
-                  <app-badge-estado-flujo [estado]="ev.estado" [etiqueta]="ev.estado_display" />
+                  <app-badge-estado-flujo [estado]="ev.estado" [etiqueta]="ev.estado_display" [conObservacion]="!!ev.con_observacion" />
                 </td>
                 <td class="px-4 py-3 text-slate-600 whitespace-nowrap">{{ vencimiento(ev) }}</td>
                 <td class="px-4 py-3 text-right whitespace-nowrap">
@@ -198,11 +198,11 @@ export class EquipoPage {
   }
 
   esperaAuto(ev: EvaluacionLista): boolean {
-    return ev.estado === 'pendiente_auto' || ev.estado === 'auto_borrador';
+    return ev.estado === 'autoevaluacion';
   }
 
   accion(ev: EvaluacionLista): { ruta: string[]; texto: string } {
-    if (ev.estado === 'auto_completa' || ev.estado === 'supervisor_borrador') {
+    if (ev.estado === 'evaluacion_supervisor') {
       return { ruta: ['/evaluaciones', String(ev.id), 'supervisar'], texto: 'Evaluar' };
     }
     return { ruta: ['/evaluaciones', String(ev.id), 'resultado'], texto: 'Ver comparación' };
@@ -224,7 +224,7 @@ export class EquipoPage {
           }
         </p>
         <div class="mt-2">
-          <app-badge-estado-flujo [estado]="actual.estado" [etiqueta]="actual.estado_display" />
+          <app-badge-estado-flujo [estado]="actual.estado" [etiqueta]="actual.estado_display" [conObservacion]="!!actual.con_observacion" />
         </div>
 
         @if (soloLectura()) {
@@ -258,7 +258,7 @@ export class EquipoPage {
         </h1>
         <p class="mt-1 text-sm text-slate-600">Ciclo «{{ actual.ciclo_nombre }}» · evaluación independiente, sin ver la autoevaluación.</p>
         <div class="mt-2">
-          <app-badge-estado-flujo [estado]="actual.estado" [etiqueta]="actual.estado_display" />
+          <app-badge-estado-flujo [estado]="actual.estado" [etiqueta]="actual.estado_display" [conObservacion]="!!actual.con_observacion" />
         </div>
 
         @if (!puedeEditar()) {
@@ -327,7 +327,7 @@ export class EquipoPage {
               Ciclo «{{ actual.ciclo_nombre }}»@if (!esEvaluado()) { · {{ nombre(actual.evaluado) }} }
             </p>
             <div class="mt-2">
-              <app-badge-estado-flujo [estado]="actual.estado" [etiqueta]="actual.estado_display" />
+              <app-badge-estado-flujo [estado]="actual.estado" [etiqueta]="actual.estado_display" [conObservacion]="!!actual.con_observacion" />
             </div>
           </div>
           <a
@@ -345,7 +345,7 @@ export class EquipoPage {
           <p class="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             El resultado del supervisor todavía no está cerrado. La comparación se revela cuando el jefe envía su evaluación.
           </p>
-        } @else if (actual.estado === 'pendiente_comparacion') {
+        } @else if (actual.estado === 'pendiente_reunion') {
           <p class="mt-4 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
             @if (esEvaluado()) {
               Ya podés comparar ambas evaluaciones. El supervisor habilitó una reunión de feedback; la firma se habilita cuando se registre o se continúe con el feedback del sistema.
@@ -415,7 +415,7 @@ export class EquipoPage {
         @if (actual.comparacion_revelada && actual.feedback_supervisor) {
           <section class="mt-6 rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
             <h2 class="text-lg font-semibold text-slate-900">Feedback del supervisor</h2>
-            @if (!actual.reunion_notas && actual.estado !== 'pendiente_comparacion') {
+            @if (!actual.reunion_notas && actual.estado !== 'pendiente_reunion') {
               <p class="mt-1 text-xs font-medium uppercase tracking-wide text-slate-500">Por el sistema, sin reunión</p>
             }
             <p class="mt-2 whitespace-pre-line text-sm text-slate-700">{{ actual.feedback_supervisor }}</p>
@@ -572,12 +572,12 @@ export class FlujoPage {
 
   soloLectura(): boolean {
     const estado = this.ev()?.estado;
-    return estado !== 'pendiente_auto' && estado !== 'auto_borrador';
+    return estado !== 'autoevaluacion';
   }
 
   puedeEditar(): boolean {
     const estado = this.ev()?.estado;
-    return estado === 'auto_completa' || estado === 'supervisor_borrador';
+    return estado === 'evaluacion_supervisor';
   }
 
   esEvaluado(): boolean {
@@ -593,7 +593,7 @@ export class FlujoPage {
   puedeRegistrarReunion(): boolean {
     const actual = this.ev();
     const usuario = this.auth.sesion()?.usuario;
-    if (!actual || !usuario || actual.estado !== 'pendiente_comparacion') {
+    if (!actual || !usuario || actual.estado !== 'pendiente_reunion') {
       return false;
     }
     return actual.evaluador?.id === usuario.id || usuario.rol === 'admin_rrhh' || usuario.rol === 'superadmin';

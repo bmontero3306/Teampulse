@@ -32,6 +32,8 @@ export interface EvaluacionLista {
   ciclo_nombre: string;
   estado: string;
   estado_display: string;
+  en_borrador?: boolean;
+  con_observacion?: boolean;
   evaluado?: UsuarioBreve | null;
   evaluador?: UsuarioBreve | null;
   puesto_nombre: string;

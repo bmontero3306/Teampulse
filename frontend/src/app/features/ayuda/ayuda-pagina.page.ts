@@ -403,29 +403,16 @@ import { AyudaPasoComponent } from './ayuda-paso.component';
                 <section class="rounded-xl border border-slate-200 bg-white p-4">
                   <h2 class="font-semibold text-slate-900">Vista rápida</h2>
                   <ol class="mt-3 flex flex-wrap items-center gap-2 text-xs">
-                    <li><app-ayuda-badge estado="pendiente_auto" contexto="eval" /></li>
+                    <li><app-ayuda-badge estado="autoevaluacion" contexto="eval" /></li>
                     <li class="text-slate-400" aria-hidden="true">→</li>
-                    <li>
-                      <app-ayuda-badge estado="auto_borrador" contexto="eval" etiqueta="Borrador empleado" />
-                    </li>
+                    <li><app-ayuda-badge estado="evaluacion_supervisor" contexto="eval" /></li>
                     <li class="text-slate-400" aria-hidden="true">→</li>
-                    <li>
-                      <app-ayuda-badge estado="auto_completa" contexto="eval" etiqueta="Auto completa" />
-                    </li>
-                    <li class="text-slate-400" aria-hidden="true">→</li>
-                    <li>
-                      <app-ayuda-badge estado="supervisor_borrador" contexto="eval" etiqueta="Borrador supervisor" />
-                    </li>
-                    <li class="text-slate-400" aria-hidden="true">→</li>
-                    <li class="rounded-lg border border-dashed border-slate-300 px-2 py-1 text-slate-600">
-                      Reunión opcional
-                    </li>
+                    <li><app-ayuda-badge estado="pendiente_reunion" contexto="eval" /></li>
+                    <li class="text-slate-500">si se pidió</li>
                     <li class="text-slate-400" aria-hidden="true">→</li>
                     <li><app-ayuda-badge estado="pendiente_conformidad" contexto="eval" /></li>
                     <li class="text-slate-400" aria-hidden="true">→</li>
                     <li><app-ayuda-badge estado="cerrada" contexto="eval" /></li>
-                    <li class="text-slate-400">o</li>
-                    <li><app-ayuda-badge estado="cerrada_con_obs" contexto="eval" /></li>
                   </ol>
                 </section>
 
@@ -433,52 +420,34 @@ import { AyudaPasoComponent } from './ayuda-paso.component';
                   <h2 class="text-lg font-semibold text-slate-900">Estados</h2>
                   <div class="mt-4">
                     <app-ayuda-paso
-                      estado="pendiente_auto"
+                      estado="autoevaluacion"
                       contexto="eval"
-                      titulo="Pendiente de autoevaluación"
-                      texto="El empleado todavía no empezó. Puede guardar borrador o enviar."
+                      titulo="Autoevaluación"
+                      texto="El empleado completa y envía. Guardar sin enviar no cambia la fase: si ya hay puntajes o comentarios, el badge dice «en borrador»."
                     />
                     <app-ayuda-paso
-                      estado="auto_borrador"
+                      estado="evaluacion_supervisor"
                       contexto="eval"
-                      titulo="Autoevaluación en borrador"
-                      texto="Hay puntajes o comentarios guardados, pero no se envió. Sigue pudiendo editar."
+                      titulo="Evaluación del supervisor"
+                      texto="La autoevaluación quedó bloqueada. El supervisor puntúa y cierra. Guardar sin cerrar sigue en esta fase y el empleado aún no ve la comparación."
                     />
                     <app-ayuda-paso
-                      estado="auto_completa"
+                      estado="pendiente_reunion"
                       contexto="eval"
-                      titulo="Autoevaluación completa"
-                      texto="El empleado ya no puede cambiar sus respuestas. El supervisor recibe aviso y puede empezar."
-                    />
-                    <app-ayuda-paso
-                      estado="supervisor_borrador"
-                      contexto="eval"
-                      titulo="Evaluación de supervisor en borrador"
-                      texto="El supervisor guardó sin cerrar. El empleado aún no ve la comparación."
-                    />
-                    <app-ayuda-paso
-                      estado="pendiente_comparacion"
-                      contexto="eval"
-                      titulo="Pendiente de comparación"
-                      texto="El supervisor cerró y pidió reunión de feedback. Hay que registrarla u omitirla (con feedback ya cargado) para habilitar la firma."
+                      titulo="Pendiente de reunión"
+                      texto="Solo si al cerrar se pidió reunión. Hay que registrarla u omitirla (con feedback ya cargado) para habilitar la firma. La comparación ya está visible."
                     />
                     <app-ayuda-paso
                       estado="pendiente_conformidad"
                       contexto="eval"
                       titulo="Pendiente de conformidad"
-                      texto="El empleado ya ve la comparación y el feedback. Puede firmar o dejar una observación de disconformidad."
+                      texto="El empleado ya ve la comparación y el feedback. Puede firmar o dejar un comentario de disconformidad."
                     />
                     <app-ayuda-paso
                       estado="cerrada"
                       contexto="eval"
                       titulo="Cerrada"
-                      texto="Firma sin observación. Queda comprobante (hash, fecha e IP) y se puede descargar el PDF."
-                    />
-                    <app-ayuda-paso
-                      estado="cerrada_con_obs"
-                      contexto="eval"
-                      titulo="Cerrada con observación"
-                      texto="El empleado firmó dejando un comentario de disconformidad. RRHH y el supervisor son notificados."
+                      texto="Firma con comprobante (hash, fecha e IP) y PDF. Si dejó un comentario, la etiqueta pasa a «Cerrada con observación»; el estado sigue siendo cerrada."
                       [ultimo]="true"
                     />
                   </div>
@@ -537,7 +506,7 @@ import { AyudaPasoComponent } from './ayuda-paso.component';
                     <li>El supervisor no puede evaluar antes de que el empleado envíe la autoevaluación.</li>
                     <li>Para cerrar, el supervisor tiene que cargar todos los puntajes y un feedback general.</li>
                     <li>
-                      Al cerrar puede habilitar reunión (pasa a pendiente de comparación) o dejar el feedback en el
+                      Al cerrar puede habilitar reunión (pasa a pendiente de reunión) o dejar el feedback en el
                       sistema (pasa directo a pendiente de conformidad).
                     </li>
                     <li>La comparación (puntajes lado a lado y brecha) se revela recién cuando el supervisor cerró.</li>
@@ -562,7 +531,7 @@ import { AyudaPasoComponent } from './ayuda-paso.component';
                     <li class="rounded-xl border border-slate-200 bg-white p-4">
                       <p class="font-medium text-slate-900">1. El supervisor cierra</p>
                       <p class="mt-1 text-slate-600">
-                        Si habilita reunión, el estado pasa a pendiente de comparación. Si no, queda pendiente de
+                        Si habilita reunión, el estado pasa a pendiente de reunión. Si no, queda pendiente de
                         conformidad y el empleado ya puede firmar.
                       </p>
                     </li>
@@ -577,8 +546,8 @@ import { AyudaPasoComponent } from './ayuda-paso.component';
                       <p class="font-medium text-slate-900">3. El empleado decide</p>
                       <p class="mt-1 text-slate-600">
                         <strong class="font-medium text-slate-800">Firmar:</strong> la evaluación queda cerrada.
-                        <strong class="font-medium text-slate-800">Observar:</strong> queda cerrada con observación y un
-                        comentario de disconformidad.
+                        <strong class="font-medium text-slate-800">Observar:</strong> sigue cerrada y el comentario de
+                        disconformidad cambia la etiqueta a «Cerrada con observación».
                       </p>
                     </li>
                   </ol>
@@ -689,7 +658,7 @@ import { AyudaPasoComponent } from './ayuda-paso.component';
                   <ul class="mt-3 list-disc space-y-1 pl-5 text-slate-600">
                     <li>Ciclo</li>
                     <li>Área</li>
-                    <li>Estado de conformidad (cerrada / cerrada con observación / pendiente)</li>
+                    <li>Estado de conformidad (conforme, con observación o sin firmar)</li>
                     <li>Rango de fechas</li>
                   </ul>
                 </section>

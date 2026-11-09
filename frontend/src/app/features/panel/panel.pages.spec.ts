@@ -101,7 +101,8 @@ describe('Inicio y panel', () => {
           evaluacion_id: 9,
           accion: 'Completar autoevaluación',
           href: '/evaluaciones/9/autoevaluacion/',
-          estado: 'pendiente_auto',
+          estado: 'autoevaluacion',
+          estado_display: 'Autoevaluación',
           ciclo: 'Ciclo Q1',
         },
       ],
@@ -121,7 +122,7 @@ describe('Inicio y panel', () => {
     expect(html.querySelector('[data-acceso="mias"]')).not.toBeNull();
     expect(html.querySelector('[data-acceso="auto"]')).not.toBeNull();
     expect(html.textContent).toContain('ana@demo.test · Ciclo Q1');
-    expect(html.textContent).toContain('Pendiente de autoevaluación');
+    expect(html.textContent).toContain('Autoevaluación');
     expect(html.textContent).toContain('Completar autoevaluación');
     expect(html.textContent).toContain('5 Set. 2026');
   });
@@ -137,8 +138,8 @@ describe('Inicio y panel', () => {
         completitud: 50,
         alertas_sin_auto: [{ id: 3, evaluado: 'Mario Pendiente' }],
         evaluaciones: [
-          { id: 3, evaluado: 'Mario Pendiente', estado: 'pendiente_auto', estado_display: 'Pendiente de autoevaluación' },
-          { id: 4, evaluado: 'Elena Lista', estado: 'auto_completa', estado_display: 'Autoevaluación completa' },
+          { id: 3, evaluado: 'Mario Pendiente', estado: 'autoevaluacion', estado_display: 'Autoevaluación' },
+          { id: 4, evaluado: 'Elena Lista', estado: 'evaluacion_supervisor', estado_display: 'Evaluación del supervisor' },
         ],
       },
       empresas_plataforma: [],

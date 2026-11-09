@@ -115,6 +115,8 @@ export interface ParticipanteApi {
   id: number;
   estado: string;
   estado_display: string;
+  en_borrador?: boolean;
+  con_observacion?: boolean;
   evaluado: PersonaBreve | null;
   evaluador: PersonaBreve | null;
   puesto_nombre: string;
@@ -222,22 +224,15 @@ export function filaDesdeApi(criterio: CriterioApi, key: number): CriterioEdicio
 }
 
 const AUTO = new Set([
-  'auto_completa',
-  'supervisor_borrador',
-  'pendiente_comparacion',
+  'evaluacion_supervisor',
+  'pendiente_reunion',
   'pendiente_conformidad',
   'cerrada',
-  'cerrada_con_obs',
 ]);
 
-const SUPERVISOR = new Set([
-  'pendiente_comparacion',
-  'pendiente_conformidad',
-  'cerrada',
-  'cerrada_con_obs',
-]);
+const SUPERVISOR = new Set(['pendiente_reunion', 'pendiente_conformidad', 'cerrada']);
 
-const FIRMADAS = new Set(['cerrada', 'cerrada_con_obs']);
+const FIRMADAS = new Set(['cerrada']);
 
 export interface ProgresoCiclo {
   total: number;

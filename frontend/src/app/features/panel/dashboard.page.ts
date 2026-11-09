@@ -26,6 +26,8 @@ interface Pendiente {
   accion: string;
   href: string;
   estado: string;
+  estado_display?: string;
+  con_observacion?: boolean;
   ciclo: string;
 }
 
@@ -40,6 +42,7 @@ interface EquipoEvaluacion {
   evaluado: string;
   estado: string;
   estado_display: string;
+  con_observacion?: boolean;
 }
 
 interface Equipo {
@@ -122,14 +125,11 @@ const BADGE_SLATE =
   'inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700 ring-1 ring-inset ring-slate-200';
 
 const ETIQUETAS_EVALUACION: Record<string, string> = {
-  pendiente_auto: 'Pendiente de autoevaluación',
-  auto_borrador: 'Autoevaluación en borrador',
-  auto_completa: 'Autoevaluación completa',
-  supervisor_borrador: 'Evaluación de supervisor en borrador',
-  pendiente_comparacion: 'Pendiente de comparación',
+  autoevaluacion: 'Autoevaluación',
+  evaluacion_supervisor: 'Evaluación del supervisor',
+  pendiente_reunion: 'Pendiente de reunión',
   pendiente_conformidad: 'Pendiente de conformidad',
   cerrada: 'Cerrada',
-  cerrada_con_obs: 'Cerrada con observación',
   pausado: 'Pausado',
   cancelada: 'Cancelada',
   cancelado: 'Cancelada',
@@ -370,7 +370,7 @@ const ETIQUETAS_EMPRESA: Record<string, string> = {
                           <tr>
                             <td class="py-2 pr-4 text-slate-800">{{ item.evaluado }}</td>
                             <td class="py-2 pr-4">
-                              @let badge = badgeEvaluacion(item.estado, item.estado_display);
+                              @let badge = badgeEvaluacion(item.estado, item.estado_display, item.con_observacion);
                               <span [class]="badge.clases">{{ badge.texto }}</span>
                             </td>
                           </tr>
@@ -448,7 +448,7 @@ const ETIQUETAS_EMPRESA: Record<string, string> = {
                         <tr>
                           <td class="py-2 pr-4 text-slate-800">{{ etiquetaEvaluacion(item) }}</td>
                           <td class="py-2 pr-4">
-                            @let badge = badgeEvaluacion(item.estado);
+                            @let badge = badgeEvaluacion(item.estado, item.estado_display, item.con_observacion);
                             <span [class]="badge.clases">{{ badge.texto }}</span>
                           </td>
                           <td class="py-2 whitespace-nowrap">
@@ -542,24 +542,21 @@ export class DashboardPage {
     return email ? `${email} · ${item.ciclo}` : item.ciclo;
   }
 
-  badgeEvaluacion(estado: string, etiqueta?: string): BadgeEstado {
+  badgeEvaluacion(estado: string, etiqueta?: string, conObservacion?: boolean): BadgeEstado {
     const texto = etiqueta || ETIQUETAS_EVALUACION[estado] || estado;
+    if (estado === 'cerrada' && conObservacion) {
+      return { clases: BADGE_RED, texto: etiqueta || 'Cerrada con observación' };
+    }
     if (estado === 'cerrada') {
-      return { clases: BADGE_EMERALD, texto: 'Cerrada' };
+      return { clases: BADGE_EMERALD, texto: etiqueta || 'Cerrada' };
     }
-    if (estado === 'cerrada_con_obs') {
-      return { clases: BADGE_RED, texto: 'Cerrada con observación' };
-    }
-    if (estado === 'pendiente_auto') {
-      return { clases: BADGE_AMBER, texto: 'Pendiente de autoevaluación' };
-    }
-    if (estado === 'pendiente_comparacion') {
-      return { clases: BADGE_AMBER, texto: 'Pendiente de comparación' };
-    }
-    if (estado === 'pendiente_conformidad') {
-      return { clases: BADGE_AMBER, texto: 'Pendiente de conformidad' };
-    }
-    if (estado === 'pausado' || estado === 'auto_borrador' || estado === 'supervisor_borrador') {
+    if (
+      estado === 'autoevaluacion' ||
+      estado === 'evaluacion_supervisor' ||
+      estado === 'pendiente_reunion' ||
+      estado === 'pendiente_conformidad' ||
+      estado === 'pausado'
+    ) {
       return { clases: BADGE_AMBER, texto };
     }
     if (estado === 'cancelada' || estado === 'cancelado') {

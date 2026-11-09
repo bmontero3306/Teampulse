@@ -363,7 +363,7 @@ const TEXTOS: Record<AccionCiclo, Omit<ConfirmacionCiclo, 'accion' | 'mensaje'> 
                   </td>
                   <td class="px-4 py-3">
                     <div class="flex flex-wrap items-center gap-2">
-                      <app-badge-estado [estado]="ev.estado" contexto="evaluacion" [etiqueta]="ev.estado_display" />
+                      <app-badge-estado [estado]="ev.estado" contexto="evaluacion" [etiqueta]="ev.estado_display" [conObservacion]="!!ev.con_observacion" />
                       @if (ev.comparacion_revelada && puedeGestionar()) {
                         <a [routerLink]="['/evaluaciones', ev.id, 'resultado']" class="text-xs font-medium text-sky-700 hover:text-sky-900">
                           Ver

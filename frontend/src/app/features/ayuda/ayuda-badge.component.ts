@@ -44,19 +44,17 @@ export function resolverBadge(
     return { texto: etiqueta || estado, clase: tono('slate') };
   }
 
-  if (estado === 'cerrada') return { texto: 'Cerrada', clase: tono('emerald') };
-  if (estado === 'cerrada_con_obs') return { texto: 'Cerrada con observación', clase: tono('red') };
-  if (estado === 'pendiente_auto') return { texto: 'Pendiente de autoevaluación', clase: tono('amber') };
-  if (estado === 'pendiente_comparacion') return { texto: 'Pendiente de comparación', clase: tono('amber') };
-  if (estado === 'pendiente_conformidad') return { texto: 'Pendiente de conformidad', clase: tono('amber') };
-  if (
-    estado === 'pausado' ||
-    estado === 'auto_borrador' ||
-    estado === 'auto_completa' ||
-    estado === 'supervisor_borrador'
-  ) {
-    return { texto: etiqueta || estado, clase: tono('amber') };
+  if (estado === 'cerrada' && etiqueta === 'Cerrada con observación') {
+    return { texto: etiqueta, clase: tono('red') };
   }
+  if (estado === 'cerrada') return { texto: etiqueta || 'Cerrada', clase: tono('emerald') };
+  if (estado === 'autoevaluacion') return { texto: etiqueta || 'Autoevaluación', clase: tono('amber') };
+  if (estado === 'evaluacion_supervisor') {
+    return { texto: etiqueta || 'Evaluación del supervisor', clase: tono('amber') };
+  }
+  if (estado === 'pendiente_reunion') return { texto: etiqueta || 'Pendiente de reunión', clase: tono('amber') };
+  if (estado === 'pendiente_conformidad') return { texto: 'Pendiente de conformidad', clase: tono('amber') };
+  if (estado === 'pausado') return { texto: etiqueta || estado, clase: tono('amber') };
   if (estado === 'cancelada' || estado === 'cancelado') return { texto: 'Cancelada', clase: tono('red') };
   if (estado === 'activa') return { texto: 'Activa', clase: tono('emerald') };
   return { texto: etiqueta || estado, clase: tono('slate') };

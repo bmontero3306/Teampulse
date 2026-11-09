@@ -35,6 +35,7 @@ interface FilaIso {
   area: string | null;
   estado: string;
   estado_display: string;
+  con_observacion?: boolean;
   enviada_auto_en: string | null;
   cerrada_supervisor_en: string | null;
   firmada_en: string | null;
@@ -59,10 +60,10 @@ const CAMPO =
 
 const ESTADOS = [
   { value: '', label: 'Todos' },
-  { value: 'pendiente_comparacion', label: 'Pendiente de comparación' },
+  { value: 'pendiente_reunion', label: 'Pendiente de reunión' },
   { value: 'pendiente_conformidad', label: 'Pendiente de conformidad' },
   { value: 'cerrada', label: 'Firmada — conforme' },
-  { value: 'cerrada_con_obs', label: 'Firmada — con observación' },
+  { value: 'con_observacion', label: 'Firmada — con observación' },
   { value: 'no_firmada', label: 'Sin firmar' },
 ];
 
@@ -101,22 +102,20 @@ function fechaDia(iso: string | null | undefined): string {
   return `${match[3]}/${match[2]}/${match[1]}`;
 }
 
-function badgeClase(estado: string): string {
+function badgeClase(estado: string, conObservacion = false): string {
   const base = 'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset';
+  if (conObservacion || estado === 'cancelada' || estado === 'cancelado') {
+    return `${base} bg-red-50 text-red-800 ring-red-200`;
+  }
   if (estado === 'cerrada' || estado === 'activa') {
     return `${base} bg-emerald-50 text-emerald-800 ring-emerald-200`;
   }
-  if (estado === 'cerrada_con_obs' || estado === 'cancelada' || estado === 'cancelado') {
-    return `${base} bg-red-50 text-red-800 ring-red-200`;
-  }
   if (
-    estado === 'pendiente_auto' ||
-    estado === 'pendiente_comparacion' ||
+    estado === 'autoevaluacion' ||
+    estado === 'evaluacion_supervisor' ||
+    estado === 'pendiente_reunion' ||
     estado === 'pendiente_conformidad' ||
-    estado === 'pausado' ||
-    estado === 'auto_borrador' ||
-    estado === 'auto_completa' ||
-    estado === 'supervisor_borrador'
+    estado === 'pausado'
   ) {
     return `${base} bg-amber-50 text-amber-800 ring-amber-200`;
   }
@@ -286,7 +285,7 @@ function badgeClase(estado: string): string {
                     <td class="whitespace-nowrap px-4 py-3 text-slate-600">{{ ev.area || '—' }}</td>
                     <td class="whitespace-nowrap px-4 py-3 text-slate-600">{{ ev.ciclo }}</td>
                     <td class="whitespace-nowrap px-4 py-3">
-                      <span [class]="badge(ev.estado)">{{ ev.estado_display }}</span>
+                      <span [class]="badge(ev.estado, !!ev.con_observacion)">{{ ev.estado_display }}</span>
                     </td>
                     <td class="whitespace-nowrap px-4 py-3 text-slate-600">{{ cuando(ev.enviada_auto_en) }}</td>
                     <td class="whitespace-nowrap px-4 py-3 text-slate-600">{{ cuando(ev.cerrada_supervisor_en) }}</td>
@@ -347,8 +346,8 @@ export class ReportesPage {
     return fechaCorta(iso);
   }
 
-  badge(estado: string): string {
-    return badgeClase(estado);
+  badge(estado: string, conObservacion = false): string {
+    return badgeClase(estado, conObservacion);
   }
 
   aplicar(event: Event): void {

@@ -27,30 +27,25 @@ import { Component, input } from '@angular/core';
     } @else {
       @switch (estado()) {
         @case ('cerrada') {
-          <span class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-800 ring-1 ring-inset ring-emerald-200">Cerrada</span>
+          @if (conObservacion()) {
+            <span class="inline-flex items-center rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-800 ring-1 ring-inset ring-red-200">{{ etiqueta() || 'Cerrada con observación' }}</span>
+          } @else {
+            <span class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-800 ring-1 ring-inset ring-emerald-200">{{ etiqueta() || 'Cerrada' }}</span>
+          }
         }
-        @case ('cerrada_con_obs') {
-          <span class="inline-flex items-center rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-800 ring-1 ring-inset ring-red-200">Cerrada con observación</span>
+        @case ('autoevaluacion') {
+          <span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-200">{{ etiqueta() || 'Autoevaluación' }}</span>
         }
-        @case ('pendiente_auto') {
-          <span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-200">Pendiente de autoevaluación</span>
+        @case ('evaluacion_supervisor') {
+          <span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-200">{{ etiqueta() || 'Evaluación del supervisor' }}</span>
         }
-        @case ('pendiente_comparacion') {
-          <span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-200">Pendiente de comparación</span>
+        @case ('pendiente_reunion') {
+          <span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-200">{{ etiqueta() || 'Pendiente de reunión' }}</span>
         }
         @case ('pendiente_conformidad') {
           <span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-200">Pendiente de conformidad</span>
         }
         @case ('pausado') {
-          <span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-200">{{ etiqueta() || estado() }}</span>
-        }
-        @case ('auto_borrador') {
-          <span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-200">{{ etiqueta() || estado() }}</span>
-        }
-        @case ('auto_completa') {
-          <span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-200">{{ etiqueta() || estado() }}</span>
-        }
-        @case ('supervisor_borrador') {
           <span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-200">{{ etiqueta() || estado() }}</span>
         }
         @case ('cancelada') {
@@ -73,4 +68,5 @@ export class BadgeEstadoComponent {
   estado = input('');
   contexto = input<'ciclo' | 'evaluacion'>('ciclo');
   etiqueta = input('');
+  conObservacion = input(false);
 }
