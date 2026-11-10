@@ -168,17 +168,12 @@ const CHECKBOX_CSS = 'h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-s
       <h1 class="text-2xl font-semibold tracking-tight text-slate-900">
         {{ editandoId() ? 'Editar área' : 'Nueva área' }}
       </h1>
-      @if (generales().length) {
-        <ul class="mt-4 space-y-2">
-          @for (error of generales(); track $index) {
+      @if (avisosFormulario().length) {
+        <ul id="errores-guardado" class="mt-4 space-y-2">
+          @for (error of avisosFormulario(); track $index) {
             <li class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ error }}</li>
           }
         </ul>
-      }
-      @if (mensajes('area_padre').length) {
-        <div class="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-          {{ texto('area_padre') }}
-        </div>
       }
       @if (formLista()) {
         <form class="mt-6 max-w-xl space-y-4 rounded-xl border border-slate-200 bg-white p-4 sm:p-6" [formGroup]="areaForm" (ngSubmit)="guardarArea()">
@@ -186,7 +181,7 @@ const CHECKBOX_CSS = 'h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-s
             <label class="mb-1 block text-sm font-medium text-slate-700" for="id_nombre">Nombre</label>
             <input id="id_nombre" type="text" formControlName="nombre" maxlength="200" required [class]="inputCss" [attr.aria-invalid]="mensajes('nombre').length ? 'true' : null" />
             @if (mensajes('nombre').length) {
-              <ul class="errorlist" id="id_nombre_error">
+              <ul class="mt-1 space-y-1 text-sm text-red-700" id="id_nombre_error">
                 @for (error of mensajes('nombre'); track $index) {
                   <li>{{ error }}</li>
                 }
@@ -202,16 +197,25 @@ const CHECKBOX_CSS = 'h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-s
               }
             </select>
             @if (mensajes('area_padre').length) {
-              <ul class="errorlist" id="id_area_padre_error">
+              <ul class="mt-1 space-y-1 text-sm text-red-700" id="id_area_padre_error">
                 @for (error of mensajes('area_padre'); track $index) {
                   <li>{{ error }}</li>
                 }
               </ul>
             }
           </div>
-          <div class="flex items-center gap-2">
-            <input id="id_activa" type="checkbox" formControlName="activa" [class]="checkboxCss" />
-            <label class="text-sm text-slate-700" for="id_activa">Área activa</label>
+          <div>
+            <div class="flex items-center gap-2">
+              <input id="id_activa" type="checkbox" formControlName="activa" [class]="checkboxCss" [attr.aria-invalid]="mensajes('activa').length ? 'true' : null" [attr.aria-describedby]="mensajes('activa').length ? 'id_activa_error' : null" />
+              <label class="text-sm text-slate-700" for="id_activa">Área activa</label>
+            </div>
+            @if (mensajes('activa').length) {
+              <ul class="mt-1 space-y-1 text-sm text-red-700" id="id_activa_error">
+                @for (error of mensajes('activa'); track $index) {
+                  <li>{{ error }}</li>
+                }
+              </ul>
+            }
           </div>
           <div class="flex flex-wrap gap-3 pt-2">
             <button type="submit" class="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700">
@@ -230,17 +234,12 @@ const CHECKBOX_CSS = 'h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-s
       <p class="mt-1 text-sm text-slate-600">
         Asigná área y puesto superior. Las competencias, escalas y ponderación se definen en la plantilla de evaluación.
       </p>
-      @if (generales().length) {
-        <ul class="mt-4 space-y-2">
-          @for (error of generales(); track $index) {
+      @if (avisosFormulario().length) {
+        <ul id="errores-guardado" class="mt-4 space-y-2">
+          @for (error of avisosFormulario(); track $index) {
             <li class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ error }}</li>
           }
         </ul>
-      }
-      @if (mensajes('puesto_superior').length) {
-        <div class="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-          {{ texto('puesto_superior') }}
-        </div>
       }
       @if (formLista()) {
         <form class="mt-6 space-y-8" id="form-puesto" [formGroup]="puestoForm" (ngSubmit)="guardarPuesto()">
@@ -251,7 +250,7 @@ const CHECKBOX_CSS = 'h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-s
                 <label class="mb-1 block text-sm font-medium text-slate-700" for="id_nombre">Nombre</label>
                 <input id="id_nombre" type="text" formControlName="nombre" maxlength="200" required [class]="inputCss" [attr.aria-invalid]="mensajes('nombre').length ? 'true' : null" />
                 @if (mensajes('nombre').length) {
-                  <ul class="errorlist" id="id_nombre_error">
+                  <ul class="mt-1 space-y-1 text-sm text-red-700" id="id_nombre_error">
                     @for (error of mensajes('nombre'); track $index) {
                       <li>{{ error }}</li>
                     }
@@ -262,7 +261,7 @@ const CHECKBOX_CSS = 'h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-s
                 <label class="mb-1 block text-sm font-medium text-slate-700" for="id_descripcion">Descripción</label>
                 <textarea id="id_descripcion" formControlName="descripcion" rows="4" [class]="textareaCss" [attr.aria-invalid]="mensajes('descripcion').length ? 'true' : null"></textarea>
                 @if (mensajes('descripcion').length) {
-                  <ul class="errorlist" id="id_descripcion_error">
+                  <ul class="mt-1 space-y-1 text-sm text-red-700" id="id_descripcion_error">
                     @for (error of mensajes('descripcion'); track $index) {
                       <li>{{ error }}</li>
                     }
@@ -278,7 +277,7 @@ const CHECKBOX_CSS = 'h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-s
                   }
                 </select>
                 @if (mensajes('area').length) {
-                  <ul class="errorlist" id="id_area_error">
+                  <ul class="mt-1 space-y-1 text-sm text-red-700" id="id_area_error">
                     @for (error of mensajes('area'); track $index) {
                       <li>{{ error }}</li>
                     }
@@ -294,16 +293,25 @@ const CHECKBOX_CSS = 'h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-s
                   }
                 </select>
                 @if (mensajes('puesto_superior').length) {
-                  <ul class="errorlist" id="id_puesto_superior_error">
+                  <ul class="mt-1 space-y-1 text-sm text-red-700" id="id_puesto_superior_error">
                     @for (error of mensajes('puesto_superior'); track $index) {
                       <li>{{ error }}</li>
                     }
                   </ul>
                 }
               </div>
-              <div class="flex items-center gap-2 sm:col-span-2">
-                <input id="id_activo" type="checkbox" formControlName="activo" [class]="checkboxCss" />
-                <label class="text-sm text-slate-700" for="id_activo">Puesto activo</label>
+              <div class="sm:col-span-2">
+                <div class="flex items-center gap-2">
+                  <input id="id_activo" type="checkbox" formControlName="activo" [class]="checkboxCss" [attr.aria-invalid]="mensajes('activo').length ? 'true' : null" [attr.aria-describedby]="mensajes('activo').length ? 'id_activo_error' : null" />
+                  <label class="text-sm text-slate-700" for="id_activo">Puesto activo</label>
+                </div>
+                @if (mensajes('activo').length) {
+                  <ul class="mt-1 space-y-1 text-sm text-red-700" id="id_activo_error">
+                    @for (error of mensajes('activo'); track $index) {
+                      <li>{{ error }}</li>
+                    }
+                  </ul>
+                }
               </div>
             </div>
           </section>
@@ -353,9 +361,9 @@ const CHECKBOX_CSS = 'h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-s
       <h1 class="text-2xl font-semibold tracking-tight text-slate-900">
         {{ editandoId() ? 'Editar competencia' : 'Nueva competencia' }}
       </h1>
-      @if (generales().length) {
-        <ul class="mt-4 space-y-2">
-          @for (error of generales(); track $index) {
+      @if (avisosFormulario().length) {
+        <ul id="errores-guardado" class="mt-4 space-y-2">
+          @for (error of avisosFormulario(); track $index) {
             <li class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ error }}</li>
           }
         </ul>
@@ -366,7 +374,7 @@ const CHECKBOX_CSS = 'h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-s
             <label class="mb-1 block text-sm font-medium text-slate-700" for="id_nombre">Nombre</label>
             <input id="id_nombre" type="text" formControlName="nombre" maxlength="200" required [class]="inputCss" [attr.aria-invalid]="mensajes('nombre').length ? 'true' : null" />
             @if (mensajes('nombre').length) {
-              <ul class="errorlist" id="id_nombre_error">
+              <ul class="mt-1 space-y-1 text-sm text-red-700" id="id_nombre_error">
                 @for (error of mensajes('nombre'); track $index) {
                   <li>{{ error }}</li>
                 }
@@ -377,7 +385,7 @@ const CHECKBOX_CSS = 'h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-s
             <label class="mb-1 block text-sm font-medium text-slate-700" for="id_descripcion">Descripción</label>
             <textarea id="id_descripcion" formControlName="descripcion" rows="4" [class]="textareaCss" [attr.aria-invalid]="mensajes('descripcion').length ? 'true' : null"></textarea>
             @if (mensajes('descripcion').length) {
-              <ul class="errorlist" id="id_descripcion_error">
+              <ul class="mt-1 space-y-1 text-sm text-red-700" id="id_descripcion_error">
                 @for (error of mensajes('descripcion'); track $index) {
                   <li>{{ error }}</li>
                 }
@@ -392,16 +400,25 @@ const CHECKBOX_CSS = 'h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-s
               }
             </select>
             @if (mensajes('tipo').length) {
-              <ul class="errorlist" id="id_tipo_error">
+              <ul class="mt-1 space-y-1 text-sm text-red-700" id="id_tipo_error">
                 @for (error of mensajes('tipo'); track $index) {
                   <li>{{ error }}</li>
                 }
               </ul>
             }
           </div>
-          <div class="flex items-center gap-2">
-            <input id="id_activa" type="checkbox" formControlName="activa" [class]="checkboxCss" />
-            <label class="text-sm text-slate-700" for="id_activa">Competencia activa</label>
+          <div>
+            <div class="flex items-center gap-2">
+              <input id="id_activa" type="checkbox" formControlName="activa" [class]="checkboxCss" [attr.aria-invalid]="mensajes('activa').length ? 'true' : null" [attr.aria-describedby]="mensajes('activa').length ? 'id_activa_error' : null" />
+              <label class="text-sm text-slate-700" for="id_activa">Competencia activa</label>
+            </div>
+            @if (mensajes('activa').length) {
+              <ul class="mt-1 space-y-1 text-sm text-red-700" id="id_activa_error">
+                @for (error of mensajes('activa'); track $index) {
+                  <li>{{ error }}</li>
+                }
+              </ul>
+            }
           </div>
           <div class="flex flex-wrap gap-3 pt-2">
             <button type="submit" class="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700">
@@ -659,8 +676,9 @@ export class OrganizacionPage {
     return this.errores()[campo] ?? [];
   }
 
-  texto(campo: string): string {
-    return this.mensajes(campo).join(' ');
+  avisosFormulario(): string[] {
+    const destacados = ['area_padre', 'puesto_superior', 'activo', 'activa'];
+    return [...this.generales(), ...destacados.flatMap((campo) => this.mensajes(campo))];
   }
 
   tipoLabel(tipo: string): string {
@@ -1002,6 +1020,7 @@ export class OrganizacionPage {
     if (!data || typeof data !== 'object' || Array.isArray(data)) {
       this.generales.set([mensajeError(error)]);
       this.errores.set({});
+      this.enfocarErrores();
       return;
     }
     const campos: Record<string, string[]> = {};
@@ -1022,6 +1041,13 @@ export class OrganizacionPage {
     }
     this.generales.set(generales);
     this.errores.set(campos);
+    this.enfocarErrores();
+  }
+
+  private enfocarErrores(): void {
+    setTimeout(() => {
+      document.getElementById('errores-guardado')?.scrollIntoView({ block: 'nearest' });
+    });
   }
 
   private listar<T>(path: string, page = 1, acc: T[] = []): Observable<T[]> {
