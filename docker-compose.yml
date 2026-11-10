@@ -1,0 +1,31 @@
+# Un solo contenedor: Django sirve el build de Angular y PostgreSQL guarda los datos.
+# Primera vez: migrate + seed_demo. Después el volumen conserva todo.
+
+services:
+  teampulse:
+    build: .
+    image: teampulse:prod
+    container_name: teampulse
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    environment:
+      DEBUG: "False"
+      SECRET_KEY: ${SECRET_KEY:-cambia-esta-clave-antes-de-publicar-teampulse}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-*}
+      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-http://localhost:8000,http://127.0.0.1:8000}
+      POSTGRES_HOST: 127.0.0.1
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-teampulse}
+      POSTGRES_USER: ${POSTGRES_USER:-teampulse}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-teampulse}
+      POSTGRES_SSLMODE: disable
+      FORCE_SEED: ${FORCE_SEED:-0}
+      DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-noreply@teampulse.local}
+    volumes:
+      - teampulse_pgdata:/var/lib/postgresql/data
+    shm_size: "256mb"
+    stop_grace_period: 30s
+    restart: unless-stopped
+
+volumes:
+  teampulse_pgdata:

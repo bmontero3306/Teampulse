@@ -6,3 +6,4 @@ reportlab
 Pillow
 gunicorn
 whitenoise
+psycopg[binary]>=3.2

@@ -2,7 +2,7 @@
 
 Sistema de gestión de desempeño (autoevaluación, evaluación de supervisor, firma de conformidad y reportes ISO 9001).
 
-**Stack:** Django 6.1 + Django REST Framework (token) · Angular 22 · Tailwind CSS v4 · SQLite en desarrollo.
+**Stack:** Django 6.1 + Django REST Framework (token) · Angular 22 · Tailwind CSS v4 · SQLite en desarrollo · PostgreSQL en Docker.
 
 La interfaz es la SPA de `frontend/`. Django expone `/api/v1/` y el admin. Las plantillas HTML solo se montan al correr los tests.
 
@@ -122,13 +122,26 @@ El repo incluye `render.yaml`. En el dashboard: **New → Blueprint** y elegí e
 
 Cada arranque borra el SQLite, migra y vuelve a sembrar las cuentas demo (`ClaveDemo-2026`). En free el disco además es efímero. Un solo worker evita locks de SQLite.
 
-## Producción (fuera del MVP de deploy)
+## Docker (producción)
 
-- `DEBUG=False` y `SECRET_KEY` fuerte en `.env`.
-- `ALLOWED_HOSTS` / `CSRF_TRUSTED_ORIGINS` con el dominio real (en Render se inyectan solos).
+Una sola imagen: build de Angular, Django/Gunicorn y PostgreSQL. Los datos quedan en el volumen `teampulse_pgdata`.
+
+```powershell
+docker compose up -d --build
+```
+
+La app queda en [http://localhost:8000/](http://localhost:8000/). El primer arranque migra y corre `seed_demo` (cuentas de arriba, clave `ClaveDemo-2026`). Los siguientes arranques no vuelven a sembrar, así que no pisan claves ni datos cargados después.
+
+- Repetir el seed a propósito: `FORCE_SEED=1` en el entorno y reiniciar el contenedor.
+- Empezar de cero (borra la base): `docker compose down -v` y volver a levantar.
+- Cambiá `SECRET_KEY` y `POSTGRES_PASSWORD` en `docker-compose.yml` antes de publicarlo.
+
+## Producción
+
+- `DEBUG=False` y `SECRET_KEY` fuerte.
+- `ALLOWED_HOSTS` / `CSRF_TRUSTED_ORIGINS` con el dominio real (en Docker el compose deja `ALLOWED_HOSTS=*`; en Render se completan solos).
 - Cambiar el mailer de consola a SMTP en `MAILERS`.
-- `python manage.py collectstatic` hacia `STATIC_ROOT` (WhiteNoise lo sirve detrás de Gunicorn).
-- SQLite alcanza para demo; un PostgreSQL queda para una etapa posterior.
+- `collectstatic` corre en la imagen; WhiteNoise sirve los estáticos detrás de Gunicorn.
 
 ## Ayuda in-app
 
