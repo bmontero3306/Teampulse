@@ -8,6 +8,8 @@ services:
     container_name: teampulse
     ports:
       - "${APP_PORT:-8000}:8000"
+      # pgAdmin en esta PC. 5432 del host ya lo usa el PostgreSQL local.
+      - "127.0.0.1:${POSTGRES_PUBLISH_PORT:-5433}:5432"
     environment:
       DEBUG: "False"
       SECRET_KEY: ${SECRET_KEY:-cambia-esta-clave-antes-de-publicar-teampulse}

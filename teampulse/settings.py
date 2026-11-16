@@ -42,7 +42,7 @@ SECRET_KEY = os.environ.get(
     "django-insecure-(a3ex&!%xboq4z!zow$*thpdtur)snd%=hdg41cf_!zyvdx$%@",
 )
 
-DEBUG = _env_bool("DEBUG", True)
+DEBUG = _env_bool("DEBUG", False)
 
 # WP10 — en producción: DEBUG=False y ALLOWED_HOSTS / CSRF vía .env
 ALLOWED_HOSTS = _env_list("ALLOWED_HOSTS")

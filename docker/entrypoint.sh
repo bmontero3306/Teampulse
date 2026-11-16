@@ -54,7 +54,7 @@ start_postgres() {
     su -s /bin/bash postgres -c \
       "$PG_BIN/initdb -D '$PGDATA' --encoding=UTF8 --locale=C.UTF-8 --auth-local=trust --auth-host=scram-sha-256 --username=postgres"
     cat >> "$PGDATA/postgresql.conf" <<'EOF'
-listen_addresses = '127.0.0.1'
+listen_addresses = '*'
 unix_socket_directories = '/var/run/postgresql'
 shared_buffers = 32MB
 max_connections = 50
@@ -62,6 +62,36 @@ EOF
   else
     echo ">> PostgreSQL ya tiene datos en $PGDATA"
   fi
+
+  # El puerto publicado entra por la red del contenedor, no por 127.0.0.1.
+  # En un volumen ya creado, la última listen_addresses es la que vale.
+  PGDATA="$PGDATA" python - <<'PY'
+import os
+from pathlib import Path
+
+pgdata = Path(os.environ["PGDATA"])
+conf = pgdata / "postgresql.conf"
+lines = conf.read_text().splitlines()
+found = False
+out = []
+for line in lines:
+    if line.startswith("listen_addresses"):
+        out.append("listen_addresses = '*'")
+        found = True
+    else:
+        out.append(line)
+if not found:
+    out.append("listen_addresses = '*'")
+conf.write_text("\n".join(out) + "\n")
+
+hba = pgdata / "pg_hba.conf"
+text = hba.read_text()
+rule = "host all all 0.0.0.0/0 scram-sha-256"
+if rule not in text:
+    if text and not text.endswith("\n"):
+        text += "\n"
+    hba.write_text(text + rule + "\n")
+PY
 
   echo ">> Levantando PostgreSQL"
   if ! su -s /bin/bash postgres -c "$PG_BIN/pg_ctl -D '$PGDATA' -w -l '$PGDATA/postgresql.log' start"; then
