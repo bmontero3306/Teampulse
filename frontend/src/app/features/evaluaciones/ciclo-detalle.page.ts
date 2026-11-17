@@ -115,7 +115,7 @@ const TEXTOS: Record<AccionCiclo, Omit<ConfirmacionCiclo, 'accion' | 'mensaje'> 
         <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h1 class="text-2xl font-semibold tracking-tight text-slate-900">{{ pedido.titulo }}</h1>
           <p class="mt-3 text-sm text-slate-600">{{ pedido.mensaje }}</p>
-          <form class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end" (ngSubmit)="ejecutar()">
+          <form class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end" (submit)="$event.preventDefault(); ejecutar()">
             <a
               [routerLink]="['/evaluaciones/ciclos', ciclo()?.id]"
               class="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
@@ -338,7 +338,7 @@ const TEXTOS: Record<AccionCiclo, Omit<ConfirmacionCiclo, 'accion' | 'mensaje'> 
                   <td class="px-4 py-3 text-slate-600">{{ ev.puesto_nombre }}</td>
                   <td class="px-4 py-3 text-slate-600">
                     @if (puedeReasignar(ev)) {
-                      <form class="flex flex-wrap items-center gap-2" (ngSubmit)="asignar(ev)">
+                      <form class="flex flex-wrap items-center gap-2" (submit)="$event.preventDefault(); asignar(ev)">
                         <label class="sr-only" [attr.for]="'evaluador-' + ev.id">Evaluador</label>
                         <select
                           [id]="'evaluador-' + ev.id"
